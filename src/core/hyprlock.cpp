@@ -779,19 +779,6 @@ void CHyprlock::onKey(uint32_t key, bool down) {
         return;
     }
 
-    if (down && std::find(m_vPressedKeys.begin(), m_vPressedKeys.end(), key) != m_vPressedKeys.end()) {
-        Debug::log(ERR, "Invalid key down event (key already pressed?)");
-        return;
-    } else if (!down && std::find(m_vPressedKeys.begin(), m_vPressedKeys.end(), key) == m_vPressedKeys.end()) {
-        Debug::log(ERR, "Invalid key down event (stray release event?)");
-        return;
-    }
-
-    if (down)
-        m_vPressedKeys.push_back(key);
-    else
-        std::erase(m_vPressedKeys, key);
-
     if (m_sPasswordState.result) {
         for (auto& o : m_vOutputs) {
             o->sessionLockSurface->render();
