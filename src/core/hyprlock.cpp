@@ -489,20 +489,15 @@ void CHyprlock::run() {
         if (pollfds[0].revents & POLLIN /* wl */) {
             Debug::log(TRACE, "got wl event");
             wl_display_flush(m_sWaylandState.display);
-            if (wl_display_prepare_read(m_sWaylandState.display) == 0) {
-                wl_display_read_events(m_sWaylandState.display);
+            while (wl_display_prepare_read(m_sWaylandState.display) != 0)
                 wl_display_dispatch_pending(m_sWaylandState.display);
-            } else {
-                wl_display_dispatch(m_sWaylandState.display);
-            }
+
+            wl_display_flush(m_sWaylandState.display);
+            wl_display_read_events(m_sWaylandState.display);
+            wl_display_dispatch_pending(m_sWaylandState.display);
         }
 
-        // finalize wayland dispatching. Dispatch pending on the queue
-        int ret = 0;
-        do {
-            ret = wl_display_dispatch_pending(m_sWaylandState.display);
-            wl_display_flush(m_sWaylandState.display);
-        } while (ret > 0 && !m_bTerminate);
+        wl_display_flush(m_sWaylandState.display);
 
         // do timers
         m_sLoopState.timersMutex.lock();
