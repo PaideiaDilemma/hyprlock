@@ -325,6 +325,11 @@ std::vector<std::unique_ptr<IWidget>>* CRenderer::getOrCreateWidgetsFor(const CS
                 else if (!PATH.empty())
                     resourceID = "background:" + PATH;
 
+                if (PATH == "screenshot" && !g_pHyprlock->getScreencopy()) {
+                    Debug::log(ERR, "No screencopy support! path=screenshot won't work. Falling back to background color.");
+                    resourceID = "";
+                }
+
                 widgets[surf].emplace_back(std::make_unique<CBackground>(surf->size, surf->output, resourceID, c.values, PATH == "screenshot"));
             } else if (c.type == "input-field") {
                 widgets[surf].emplace_back(std::make_unique<CPasswordInputField>(surf->size, c.values, surf->output->stringPort));

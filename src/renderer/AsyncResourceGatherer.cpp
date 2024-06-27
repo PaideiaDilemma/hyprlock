@@ -21,6 +21,9 @@ CAsyncResourceGatherer::CAsyncResourceGatherer() {
     // some things can't be done async :(
     // gather background textures when needed
 
+    if (!g_pHyprlock->getScreencopy())
+        return;
+
     const auto               CWIDGETS = g_pConfigManager->getWidgetConfigs();
 
     std::vector<std::string> mons;
@@ -57,6 +60,9 @@ CAsyncResourceGatherer::CAsyncResourceGatherer() {
 }
 
 void CAsyncResourceGatherer::recheckDMAFramesFor(COutput* output) {
+    if (!g_pHyprlock->getScreencopy())
+        return;
+
     const auto CWIDGETS = g_pConfigManager->getWidgetConfigs();
 
     bool       shouldMake = false;
