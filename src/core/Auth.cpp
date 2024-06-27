@@ -45,7 +45,13 @@ int conv(int num_msg, const struct pam_message** msg, struct pam_response** resp
                 initialPrompt    = false;
             } break;
             case PAM_ERROR_MSG: Debug::log(ERR, "PAM: {}", msg[i]->msg); break;
-            case PAM_TEXT_INFO: Debug::log(LOG, "PAM: {}", msg[i]->msg); break;
+            case PAM_TEXT_INFO:
+                Debug::log(LOG, "PAM: {}", msg[i]->msg);
+                if (strstr(msg[i]->msg, "minutes left to unlock") != nullptr) {
+                    CONVERSATIONSTATE->faillock = true;
+                    CONVERSATIONSTATE->prompt   = msg[i]->msg;
+                }
+                return PAM_AUTH_ERR;
         }
     }
 
@@ -67,12 +73,22 @@ static void passwordCheckTimerCallback(std::shared_ptr<CTimer> self, void* data)
     g_pHyprlock->onPasswordCheckTimer();
 }
 
+// Used when faillock is active
+// That means we are waiting for userinput, but we don't need to check auth and can just restart the authentication
+static void restartAuthTimerCallback(std::shared_ptr<CTimer> self, void* data) {
+    g_pAuth->start();
+}
+
 void CAuth::start() {
     std::thread([this]() {
         resetConversation();
         auth();
 
-        g_pHyprlock->addTimer(std::chrono::milliseconds(1), passwordCheckTimerCallback, nullptr);
+        if (m_sConversationState.faillock) {
+            g_pAuth->waitForInput();
+            g_pHyprlock->addTimer(std::chrono::milliseconds(1), restartAuthTimerCallback, nullptr);
+        } else
+            g_pHyprlock->addTimer(std::chrono::milliseconds(1), passwordCheckTimerCallback, nullptr);
     }).detach();
 }
 
@@ -98,6 +114,7 @@ bool CAuth::auth() {
         m_sConversationState.success  = false;
         m_sConversationState.failText = ret == PAM_AUTH_ERR ? "Authentication failed" : "pam_authenticate failed";
         Debug::log(ERR, "auth: {} for {}", m_sConversationState.failText, m_sPamModule);
+        ret = pam_end(handle, ret);
         return false;
     }
 
@@ -163,4 +180,5 @@ void CAuth::resetConversation() {
     m_sConversationState.waitingForPamAuth = false;
     m_sConversationState.inputRequested    = false;
     m_sConversationState.success           = false;
+    m_sConversationState.faillock          = false;
 }

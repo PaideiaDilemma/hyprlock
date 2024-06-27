@@ -19,7 +19,8 @@ class CAuth {
         bool                    waitingForPamAuth = false;
         bool                    inputRequested    = false;
 
-        bool                    success = false;
+        bool                    success  = false;
+        bool                    faillock = false;
     };
 
     CAuth();
