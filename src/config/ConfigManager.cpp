@@ -1,5 +1,6 @@
 #include "ConfigManager.hpp"
 #include "../helpers/MiscFunctions.hpp"
+#include <algorithm>
 #include <filesystem>
 #include <glob.h>
 #include <cstring>
@@ -36,6 +37,13 @@ CConfigManager::CConfigManager(std::string configPath) :
 }
 
 void CConfigManager::init() {
+    std::string errLabelText = "";
+    if (!std::filesystem::exists(configCurrentPath)) {
+        errLabelText = std::format("Config file \"{}\" doesn't exist. Using an empty config means nothing is drawn.\n"
+                                   "But you can still unlock by entering your password as usual, even though you have no input field.",
+                                   configCurrentPath);
+        Debug::log(ERR, "{}", errLabelText);
+    }
 
 #define SHADOWABLE(name)                                                                                                                                                           \
     m_config.addSpecialConfigValue(name, "shadow_size", Hyprlang::INT{3});                                                                                                         \
@@ -147,8 +155,39 @@ void CConfigManager::init() {
 
     auto result = m_config.parse();
 
-    if (result.error)
+    if (result.error) {
         Debug::log(ERR, "Config has errors:\n{}\nProceeding ignoring faulty entries", result.getError());
+
+        errLabelText += result.getError();
+    }
+
+    if (!errLabelText.empty()) {
+        // replace "<", ">" in hyprlang errors. Otherwise interpreted as a pango markup tag
+        std::replace(errLabelText.begin(), errLabelText.end(), '<', '[');
+        std::replace(errLabelText.begin(), errLabelText.end(), '>', ']');
+
+        const auto LINES   = std::count(errLabelText.begin(), errLabelText.end(), '\n') + 1;
+        const auto BOXSIZE = "1000, " + std::to_string(10 + (22 * LINES)); // This might not be accurate
+
+        m_config.parseDynamic("label[err]:text", errLabelText.c_str());
+        m_config.parseDynamic("label:size", BOXSIZE.c_str());
+        m_config.parseDynamic("label:position", "0, -18");
+        m_config.parseDynamic("label:color", "0xFF000000");
+        m_config.parseDynamic("label:font_size", "11");
+        m_config.parseDynamic("label:halign", "center");
+        m_config.parseDynamic("label:valign", "top");
+        m_config.parseDynamic("label:z_index", "10");
+
+        m_config.parseDynamic("shape[err]:size", BOXSIZE.c_str());
+        m_config.parseDynamic("shape:rounding", "5");
+        m_config.parseDynamic("shape:border_color", "0xFF000000");
+        m_config.parseDynamic("shape:border_size", "2");
+        m_config.parseDynamic("shape:color", "0xFFCC2222");
+        m_config.parseDynamic("shape:position", "0, -10");
+        m_config.parseDynamic("shape:halign", "center");
+        m_config.parseDynamic("shape:valign", "top");
+        m_config.parseDynamic("shape:z_index", "9");
+    }
 
 #undef SHADOWABLE
 }
