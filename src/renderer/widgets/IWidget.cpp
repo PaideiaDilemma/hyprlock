@@ -101,20 +101,34 @@ static void replaceAllLayout(std::string& str) {
 }
 
 static std::string getTime() {
-    const auto current_zone = std::chrono::current_zone();
-    const auto HHMMSS       = std::chrono::hh_mm_ss{current_zone->to_local(std::chrono::system_clock::now()) -
-                                              std::chrono::floor<std::chrono::days>(current_zone->to_local(std::chrono::system_clock::now()))};
-    const auto HRS          = HHMMSS.hours().count();
-    const auto MINS         = HHMMSS.minutes().count();
+    const auto PCURRENTTZ = std::chrono::current_zone();
+    const auto PUTC       = std::chrono::locate_zone("UTC");
+
+    if (!PCURRENTTZ) {
+        Debug::log(WARN, "Current timezone unknown for $TIME. Using UTC!");
+        RASSERT(PUTC, "Failed to get UTC timezone");
+    }
+
+    const auto LOCALTP = (PCURRENTTZ) ? PCURRENTTZ->to_local(std::chrono::system_clock::now()) : PUTC->to_local(std::chrono::system_clock::now());
+    const auto HHMMSS  = std::chrono::hh_mm_ss{LOCALTP - std::chrono::floor<std::chrono::days>(LOCALTP)};
+    const auto HRS     = HHMMSS.hours().count();
+    const auto MINS    = HHMMSS.minutes().count();
     return (HRS < 10 ? "0" : "") + std::to_string(HRS) + ":" + (MINS < 10 ? "0" : "") + std::to_string(MINS);
 }
 
 static std::string getTime12h() {
-    const auto current_zone = std::chrono::current_zone();
-    const auto HHMMSS       = std::chrono::hh_mm_ss{current_zone->to_local(std::chrono::system_clock::now()) -
-                                              std::chrono::floor<std::chrono::days>(current_zone->to_local(std::chrono::system_clock::now()))};
-    const auto HRS          = HHMMSS.hours().count();
-    const auto MINS         = HHMMSS.minutes().count();
+    const auto PCURRENTTZ = std::chrono::current_zone();
+    const auto PUTC       = std::chrono::locate_zone("UTC");
+
+    if (!PCURRENTTZ) {
+        Debug::log(WARN, "Current timezone unknown for $TIME. Using UTC!");
+        RASSERT(PUTC, "Failed to get UTC timezone");
+    }
+
+    const auto LOCALTP = (PCURRENTTZ) ? PCURRENTTZ->to_local(std::chrono::system_clock::now()) : PUTC->to_local(std::chrono::system_clock::now());
+    const auto HHMMSS  = std::chrono::hh_mm_ss{LOCALTP - std::chrono::floor<std::chrono::days>(LOCALTP)};
+    const auto HRS     = HHMMSS.hours().count();
+    const auto MINS    = HHMMSS.minutes().count();
     return (HRS % 12 < 10 ? "0" : "") + std::to_string(HRS % 12) + ":" + (MINS < 10 ? "0" : "") + std::to_string(MINS) + (HRS < 12 ? " AM" : " PM");
 }
 
