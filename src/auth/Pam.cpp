@@ -154,14 +154,14 @@ void CPam::waitForInput() {
     m_bBlockInput = true;
 }
 
-void CPam::handleInput(const std::string& input) {
+void CPam::handleInput(const SensitiveString& input) {
     g_pAuth->postActivity(AUTH_IMPL_PAM);
     std::unique_lock<std::mutex> lk(m_sConversationState.inputMutex);
 
     if (!m_sConversationState.inputRequested)
         Debug::log(ERR, "SubmitInput called, but the auth thread is not waiting for input!");
 
-    m_sConversationState.input             = input;
+    m_sConversationState.input.set(input);
     m_sConversationState.inputRequested    = false;
     m_sConversationState.waitingForPamAuth = true;
     m_sConversationState.inputSubmittedCondition.notify_all();
@@ -186,7 +186,7 @@ void CPam::terminate() {
 }
 
 void CPam::resetConversation() {
-    m_sConversationState.input             = "";
+    m_sConversationState.input.clear();
     m_sConversationState.waitingForPamAuth = false;
     m_sConversationState.inputRequested    = false;
     m_sConversationState.failTextFromPam   = false;

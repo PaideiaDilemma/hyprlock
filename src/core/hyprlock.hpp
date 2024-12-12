@@ -1,13 +1,15 @@
 #pragma once
 
+#include "../helpers/SensitiveString.hpp"
+#include "Output.hpp"
+#include "CursorShape.hpp"
+#include "Timer.hpp"
+
 #include <wayland-client.h>
 #include "ext-session-lock-v1-protocol.h"
 #include "fractional-scale-v1-protocol.h"
 #include "wlr-screencopy-unstable-v1-protocol.h"
 #include "viewporter-protocol.h"
-#include "Output.hpp"
-#include "CursorShape.hpp"
-#include "Timer.hpp"
 #include <memory>
 #include <vector>
 #include <condition_variable>
@@ -148,9 +150,9 @@ class CHyprlock {
     } m_sLockState;
 
     struct {
-        std::string passBuffer      = "";
-        size_t      failedAttempts  = 0;
-        bool        displayFailText = false;
+        SensitiveString passBuffer      = "";
+        size_t          failedAttempts  = 0;
+        bool            displayFailText = false;
     } m_sPasswordState;
 
     struct {

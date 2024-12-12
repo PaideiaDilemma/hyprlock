@@ -813,7 +813,7 @@ void CHyprlock::clearPasswordBuffer() {
     if (m_sPasswordState.passBuffer.empty())
         return;
 
-    m_sPasswordState.passBuffer = "";
+    m_sPasswordState.passBuffer.clear();
 
     renderAllOutputs();
 }
@@ -931,7 +931,7 @@ void CHyprlock::handleKeySym(xkb_keysym_t sym, bool composed) {
     if (SYM == XKB_KEY_Escape || (m_bCtrl && (SYM == XKB_KEY_u || SYM == XKB_KEY_BackSpace))) {
         Debug::log(LOG, "Clearing password buffer");
 
-        m_sPasswordState.passBuffer = "";
+        m_sPasswordState.passBuffer.clear();
     } else if (SYM == XKB_KEY_Return || SYM == XKB_KEY_KP_Enter) {
         Debug::log(LOG, "Authenticating");
 
@@ -948,7 +948,7 @@ void CHyprlock::handleKeySym(xkb_keysym_t sym, bool composed) {
             // handle utf-8
             while ((m_sPasswordState.passBuffer.back() & 0xc0) == 0x80)
                 m_sPasswordState.passBuffer.pop_back();
-            m_sPasswordState.passBuffer = m_sPasswordState.passBuffer.substr(0, m_sPasswordState.passBuffer.length() - 1);
+            m_sPasswordState.passBuffer.pop_back();
         }
     } else if (SYM == XKB_KEY_Caps_Lock) {
         m_bCapsLock = !m_bCapsLock;
@@ -960,7 +960,7 @@ void CHyprlock::handleKeySym(xkb_keysym_t sym, bool composed) {
                                     xkb_keysym_to_utf8(SYM, buf, sizeof(buf)) /* already includes a nullbyte */;
 
         if (len > 1)
-            m_sPasswordState.passBuffer += std::string{buf, len - 1};
+            m_sPasswordState.passBuffer.extend(buf, len - 1);
     }
 }
 

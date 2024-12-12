@@ -58,6 +58,7 @@ pkg_check_modules(
   gbm
   hyprutils>=0.2.6
   sdbus-c++>=2.0.0
+  libsodium
   hyprgraphics)
 
 file(GLOB_RECURSE SRCFILES CONFIGURE_DEPENDS "src/*.cpp")
@@ -102,7 +103,7 @@ function(protocol protoPath protoName external)
 endfunction()
 
 make_directory(${CMAKE_SOURCE_DIR}/protocols) # we don't ship any custom ones so
-                                              # the dir won't be there
+# the dir won't be there
 protocol("staging/ext-session-lock/ext-session-lock-v1.xml"
          "ext-session-lock-v1" false)
 protocol("staging/cursor-shape/cursor-shape-v1.xml" "cursor-shape-v1" false)
@@ -125,3 +126,14 @@ install(
   FILES ${CMAKE_SOURCE_DIR}/assets/example.conf
   DESTINATION ${CMAKE_INSTALL_FULL_DATAROOTDIR}/hypr
   RENAME hyprlock.conf)
+
+# Tests
+add_custom_target(tests)
+
+add_executable(hyprlock_sensitive_string_test "tests/SensitiveString.cpp")
+target_link_libraries(hyprlock_sensitive_string_test PRIVATE sodium)
+add_test(
+  NAME hyprlock_sensitive_string_test
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tests
+  COMMAND hyprlock_sensitive_string_test "SensitiveString")
+add_dependencies(tests hyprlock_sensitive_string_test)

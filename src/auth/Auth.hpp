@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../helpers/SensitiveString.hpp"
 #include <memory>
 #include <optional>
 #include <vector>
@@ -7,19 +8,20 @@
 enum eAuthImplementations {
     AUTH_IMPL_PAM         = 0,
     AUTH_IMPL_FINGERPRINT = 1,
+    AUTH_IMPL_CUSTOM      = 2,
 };
 
 class IAuthImplementation {
   public:
     virtual ~IAuthImplementation() = default;
 
-    virtual eAuthImplementations       getImplType()                         = 0;
-    virtual void                       init()                                = 0;
-    virtual void                       handleInput(const std::string& input) = 0;
-    virtual bool                       checkWaiting()                        = 0;
-    virtual std::optional<std::string> getLastFailText()                     = 0;
-    virtual std::optional<std::string> getLastPrompt()                       = 0;
-    virtual void                       terminate()                           = 0;
+    virtual eAuthImplementations       getImplType()                             = 0;
+    virtual void                       init()                                    = 0;
+    virtual void                       handleInput(const SensitiveString& input) = 0;
+    virtual bool                       checkWaiting()                            = 0;
+    virtual std::optional<std::string> getLastFailText()                         = 0;
+    virtual std::optional<std::string> getLastPrompt()                           = 0;
+    virtual void                       terminate()                               = 0;
 
     friend class CAuth;
 };
@@ -30,7 +32,7 @@ class CAuth {
 
     void start();
 
-    void submitInput(const std::string& input);
+    void submitInput(const SensitiveString& input);
     bool checkWaiting();
 
     // Used by the PasswordInput field. We are constraint to a single line for the authentication feedback there.

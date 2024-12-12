@@ -76,7 +76,7 @@ void CFingerprint::init() {
     });
 }
 
-void CFingerprint::handleInput(const std::string& input) {
+void CFingerprint::handleInput(const SensitiveString& input) {
     ;
 }
 

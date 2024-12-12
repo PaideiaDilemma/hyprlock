@@ -11,7 +11,7 @@
 class CPam : public IAuthImplementation {
   public:
     struct SPamConversationState {
-        std::string             input    = "";
+        SensitiveString         input    = "";
         std::string             prompt   = "";
         std::string             failText = "";
 
@@ -33,7 +33,7 @@ class CPam : public IAuthImplementation {
         return AUTH_IMPL_PAM;
     }
     virtual void                       init();
-    virtual void                       handleInput(const std::string& input);
+    virtual void                       handleInput(const SensitiveString& input);
     virtual bool                       checkWaiting();
     virtual std::optional<std::string> getLastFailText();
     virtual std::optional<std::string> getLastPrompt();

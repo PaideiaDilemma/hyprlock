@@ -16,7 +16,7 @@ class CFingerprint : public IAuthImplementation {
         return AUTH_IMPL_FINGERPRINT;
     }
     virtual void                        init();
-    virtual void                        handleInput(const std::string& input);
+    virtual void                        handleInput(const SensitiveString& input);
     virtual bool                        checkWaiting();
     virtual std::optional<std::string>  getLastFailText();
     virtual std::optional<std::string>  getLastPrompt();
