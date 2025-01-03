@@ -9,6 +9,7 @@
 void help() {
     std::println("Usage: hyprlock [options]\n\n"
                  "Options:\n"
+                 "  -g, --greetd             - Start hyprlock for session login via greetd\n"
                  "  -v, --verbose            - Enable verbose logging\n"
                  "  -q, --quiet              - Disable logging\n"
                  "  -c FILE, --config FILE   - Specify config file to use\n"
@@ -35,6 +36,7 @@ int main(int argc, char** argv, char** envp) {
     bool                     immediate       = false;
     bool                     immediateRender = false;
     bool                     noFadeIn        = false;
+    bool                     greetdLogin     = false;
 
     std::vector<std::string> args(argv, argv + argc);
 
@@ -56,7 +58,11 @@ int main(int argc, char** argv, char** envp) {
             return 0;
         }
 
-        if (arg == "--verbose" || arg == "-v")
+        if (arg == "--greetd" || arg == "-g") {
+            greetdLogin     = true;
+            immediate       = true;
+            immediateRender = true;
+        } else if (arg == "--verbose" || arg == "-v")
             Debug::verbose = true;
 
         else if (arg == "--quiet" || arg == "-q")
@@ -107,7 +113,7 @@ int main(int argc, char** argv, char** envp) {
         g_pConfigManager->m_AnimationTree.setConfigForNode("fadeIn", false, 0.f, "default");
 
     try {
-        g_pHyprlock = std::make_unique<CHyprlock>(wlDisplay, immediate, immediateRender);
+        g_pHyprlock = std::make_unique<CHyprlock>(wlDisplay, immediate, immediateRender, greetdLogin);
         g_pHyprlock->run();
     } catch (const std::exception& ex) {
         Debug::log(CRIT, "Hyprlock threw: {}", ex.what());

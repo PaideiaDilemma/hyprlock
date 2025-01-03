@@ -5,6 +5,7 @@
 #include "../renderer/Renderer.hpp"
 #include "../auth/Auth.hpp"
 #include "../auth/Fingerprint.hpp"
+#include "../auth/GreetdLogin.hpp"
 #include "Egl.hpp"
 #include <sys/wait.h>
 #include <sys/poll.h>
@@ -23,7 +24,7 @@
 
 using namespace Hyprutils::OS;
 
-CHyprlock::CHyprlock(const std::string& wlDisplay, const bool immediate, const bool immediateRender) {
+CHyprlock::CHyprlock(const std::string& wlDisplay, const bool immediate, const bool immediateRender, const bool greetdLogin) : m_bGreetdLogin(greetdLogin) {
     m_sWaylandState.display = wl_display_connect(wlDisplay.empty() ? nullptr : wlDisplay.c_str());
     if (!m_sWaylandState.display) {
         Debug::log(CRIT, "Couldn't connect to a wayland compositor");
@@ -310,8 +311,11 @@ void CHyprlock::run() {
     // gather info about monitors
     wl_display_roundtrip(m_sWaylandState.display);
 
+    if (m_bGreetdLogin)
+        gatherSessions();
+
     g_pRenderer = std::make_unique<CRenderer>();
-    g_pAuth     = std::make_unique<CAuth>();
+    g_pAuth     = std::make_unique<CAuth>(m_bGreetdLogin);
     g_pAuth->start();
 
     Debug::log(LOG, "Running on {}", m_sCurrentDesktop);
@@ -669,10 +673,20 @@ void CHyprlock::handleKeySym(xkb_keysym_t sym, bool composed) {
                 m_sPasswordState.passBuffer.pop_back();
             m_sPasswordState.passBuffer = m_sPasswordState.passBuffer.substr(0, m_sPasswordState.passBuffer.length() - 1);
         }
-    } else if (SYM == XKB_KEY_Caps_Lock) {
+    } else if (SYM == XKB_KEY_Caps_Lock)
         m_bCapsLock = !m_bCapsLock;
-    } else if (SYM == XKB_KEY_Num_Lock) {
+    else if (SYM == XKB_KEY_Num_Lock)
         m_bNumLock = !m_bNumLock;
+    else if (SYM == XKB_KEY_Up) {
+        if (m_sGreetdLoginSessionState.iSelectedLoginSession > 0)
+            m_sGreetdLoginSessionState.iSelectedLoginSession--;
+        else
+            m_sGreetdLoginSessionState.iSelectedLoginSession = m_sGreetdLoginSessionState.vLoginSessions.size() - 1;
+    } else if (SYM == XKB_KEY_Down) {
+        if (m_sGreetdLoginSessionState.iSelectedLoginSession < m_sGreetdLoginSessionState.vLoginSessions.size() - 1)
+            m_sGreetdLoginSessionState.iSelectedLoginSession++;
+        else
+            m_sGreetdLoginSessionState.iSelectedLoginSession = 0;
     } else {
         char buf[16] = {0};
         int  len     = (composed) ? xkb_compose_state_get_utf8(g_pSeatManager->m_pXKBComposeState, buf, sizeof(buf)) /* nullbyte */ + 1 :
@@ -828,6 +842,46 @@ std::string CHyprlock::spawnSync(const std::string& cmd) {
         Debug::log(ERR, "Shell command \"{}\" STDERR:\n{}", cmd, proc.stdErr());
 
     return proc.stdOut();
+}
+
+void CHyprlock::gatherSessions() {
+    m_sGreetdLoginSessionState.vLoginSessions = g_pConfigManager->getLoginSessionConfigs();
+
+    std::vector<std::string> searchPaths = {
+        "/usr/local/share/wayland-sessions",
+        "/usr/share/wayland-sessions",
+    };
+
+    for (const auto& DIR : searchPaths) {
+        if (!std::filesystem::exists(DIR))
+            continue;
+
+        for (const auto& dirEntry : std::filesystem::recursive_directory_iterator{DIR}) {
+            if (!dirEntry.is_regular_file() || dirEntry.path().extension() != ".desktop")
+                continue;
+
+            SLoginSessionConfig session;
+
+            // read line for line and parse the desktop file naivly
+            std::ifstream fHandle(dirEntry.path().c_str());
+            std::string   line;
+            while (std::getline(fHandle, line)) {
+                if (line.empty())
+                    continue;
+
+                if (line.find("Name=") != std::string::npos)
+                    session.name = line.substr(5);
+                else if (line.find("Exec=") != std::string::npos)
+                    session.exec = line.substr(5);
+            }
+
+            if (!session.name.empty() && !session.exec.empty()) {
+                m_sGreetdLoginSessionState.vLoginSessions.emplace_back(session);
+                Debug::log(LOG, "Registered session from {}: {}", dirEntry.path().c_str(), session.name.c_str());
+            } else
+                Debug::log(LOG, "Failed to parse session file: {}", dirEntry.path().c_str());
+        }
+    }
 }
 
 SP<CCZwlrScreencopyManagerV1> CHyprlock::getScreencopy() {
