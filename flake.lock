@@ -62,11 +62,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1736164519,
-        "narHash": "sha256-1LimBKvDpBbeX+qW7T240WEyw+DBVpDotZB4JYm8Aps=",
+        "lastModified": 1736613432,
+        "narHash": "sha256-x7nMS1dFtlzgG13QoguKMZ6SKwSIQw82OANA5ZKF0d0=",
         "owner": "hyprwm",
         "repo": "hyprutils",
-        "rev": "3c895da64b0eb19870142196fa48c07090b441c4",
+        "rev": "72dfbf52967e4040693164319a027d8ac6315887",
         "type": "github"
       },
       "original": {
@@ -100,12 +100,11 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1736012469,
-        "narHash": "sha256-/qlNWm/IEVVH7GfgAIyP6EsVZI6zjAx1cV5zNyrs+rI=",
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "8f3e1f807051e32d8c95cd12b9b421623850a34d",
-        "type": "github"
+        "lastModified": 1737062831,
+        "narHash": "sha256-Tbk1MZbtV2s5aG+iM99U8FqwxU/YNArMcWAv6clcsBc=",
+        "path": "/nix/store/l9nb64iii15y0nr37qrs1cfm6rlpg6gh-source",
+        "rev": "5df43628fdf08d642be8ba5b3625a6c70731c19c",
+        "type": "path"
       },
       "original": {
         "owner": "NixOS",
