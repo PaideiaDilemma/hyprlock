@@ -10,6 +10,11 @@
 
 #include "../defines.hpp"
 
+struct SLoginSessionConfig {
+    std::string name = "";
+    std::string exec = "";
+};
+
 class CConfigManager {
   public:
     CConfigManager(std::string configPath);
@@ -25,9 +30,12 @@ class CConfigManager {
 
     std::vector<SWidgetConfig>                 getWidgetConfigs();
 
+    std::vector<SLoginSessionConfig>           getLoginSessionConfigs();
+
     std::optional<std::string>                 handleSource(const std::string&, const std::string&);
     std::optional<std::string>                 handleBezier(const std::string&, const std::string&);
     std::optional<std::string>                 handleAnimation(const std::string&, const std::string&);
+    std::optional<std::string>                 handleLoginSession(const std::string&, const std::string&);
 
     std::string                                configCurrentPath;
 
