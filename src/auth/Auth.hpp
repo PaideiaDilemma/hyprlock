@@ -7,6 +7,7 @@
 enum eAuthImplementations {
     AUTH_IMPL_PAM         = 0,
     AUTH_IMPL_FINGERPRINT = 1,
+    AUTH_IMPL_GREETD      = 2,
 };
 
 class IAuthImplementation {
@@ -26,7 +27,7 @@ class IAuthImplementation {
 
 class CAuth {
   public:
-    CAuth();
+    CAuth(bool sessionLogin);
 
     void                                 start();
 

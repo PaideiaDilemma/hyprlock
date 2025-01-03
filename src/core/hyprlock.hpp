@@ -27,9 +27,11 @@ struct SDMABUFModifier {
     uint64_t mod    = 0;
 };
 
+struct SLoginSessionConfig;
+
 class CHyprlock {
   public:
-    CHyprlock(const std::string& wlDisplay, const bool immediate, const bool immediateRender);
+    CHyprlock(const std::string& wlDisplay, const bool immediate, const bool immediateRender, const bool greetdLogin);
     ~CHyprlock();
 
     void                             run();
@@ -56,6 +58,8 @@ class CHyprlock {
     void                             attemptRestoreOnDeath();
 
     std::string                      spawnSync(const std::string& cmd);
+
+    void                             gatherSessions();
 
     void                             onKey(uint32_t key, bool down);
     void                             startKeyRepeat(xkb_keysym_t sym);
@@ -95,7 +99,7 @@ class CHyprlock {
 
     bool                             m_bImmediateRender = false;
 
-    std::string                      m_sCurrentDesktop = "";
+    bool                             m_bGreetdLogin = false;
 
     //
     std::chrono::system_clock::time_point m_tGraceEnds;
@@ -120,6 +124,13 @@ class CHyprlock {
         std::vector<SDMABUFModifier>   dmabufMods;
     } dma;
     gbm_device* createGBMDevice(drmDevice* dev);
+
+    struct {
+        uint32_t                         iSelectedLoginSession = 0;
+        std::vector<SLoginSessionConfig> vLoginSessions;
+    } m_sGreetdLoginSessionState;
+
+    std::string m_sCurrentDesktop = "";
 
   private:
     struct {
