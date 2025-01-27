@@ -17,6 +17,7 @@
 #include "widgets/Label.hpp"
 #include "widgets/Image.hpp"
 #include "widgets/Shape.hpp"
+#include "widgets/SessionPicker.hpp"
 
 inline const float fullVerts[] = {
     1, 0, // top right
@@ -448,6 +449,8 @@ std::vector<std::unique_ptr<IWidget>>* CRenderer::getOrCreateWidgetsFor(const CS
                     resourceID = "image:" + PATH;
 
                 widgets[surf].emplace_back(std::make_unique<CImage>(surf->size, surf->output, resourceID, c.values));
+            } else if (c.type == "session-picker" && g_pHyprlock->m_bGreetdLogin) {
+                widgets[surf].emplace_back(std::make_unique<CSessionPicker>(surf->size, c.values));
             }
         }
     }

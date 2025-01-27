@@ -5,6 +5,7 @@
 #include "../renderer/Renderer.hpp"
 #include "../auth/Auth.hpp"
 #include "../auth/Fingerprint.hpp"
+#include "../auth/GreetdLogin.hpp"
 #include "Egl.hpp"
 #include <sys/wait.h>
 #include <sys/poll.h>
@@ -23,7 +24,10 @@
 
 using namespace Hyprutils::OS;
 
-CHyprlock::CHyprlock(const std::string& wlDisplay, const bool immediate, const bool immediateRender) {
+CHyprlock::CHyprlock(const std::string& wlDisplay, const bool immediate, const bool immediateRender, const bool greetdLogin,
+                     const std::vector<SLoginSessionConfig>& loginSessions) : m_bGreetdLogin(greetdLogin) {
+    m_sGreetdLoginSessionState.vLoginSessions = loginSessions;
+
     m_sWaylandState.display = wl_display_connect(wlDisplay.empty() ? nullptr : wlDisplay.c_str());
     if (!m_sWaylandState.display) {
         Debug::log(CRIT, "Couldn't connect to a wayland compositor");
@@ -313,7 +317,7 @@ void CHyprlock::run() {
     wl_display_roundtrip(m_sWaylandState.display);
 
     g_pRenderer = std::make_unique<CRenderer>();
-    g_pAuth     = std::make_unique<CAuth>();
+    g_pAuth     = std::make_unique<CAuth>(m_bGreetdLogin);
     g_pAuth->start();
 
     Debug::log(LOG, "Running on {}", m_sCurrentDesktop);
@@ -676,10 +680,20 @@ void CHyprlock::handleKeySym(xkb_keysym_t sym, bool composed) {
                 m_sPasswordState.passBuffer.pop_back();
             m_sPasswordState.passBuffer = m_sPasswordState.passBuffer.substr(0, m_sPasswordState.passBuffer.length() - 1);
         }
-    } else if (SYM == XKB_KEY_Caps_Lock) {
+    } else if (SYM == XKB_KEY_Caps_Lock)
         m_bCapsLock = !m_bCapsLock;
-    } else if (SYM == XKB_KEY_Num_Lock) {
+    else if (SYM == XKB_KEY_Num_Lock)
         m_bNumLock = !m_bNumLock;
+    else if (SYM == XKB_KEY_Up) {
+        if (m_sGreetdLoginSessionState.iSelectedLoginSession > 0)
+            m_sGreetdLoginSessionState.iSelectedLoginSession--;
+        else
+            m_sGreetdLoginSessionState.iSelectedLoginSession = m_sGreetdLoginSessionState.vLoginSessions.size() - 1;
+    } else if (SYM == XKB_KEY_Down) {
+        if (m_sGreetdLoginSessionState.iSelectedLoginSession < m_sGreetdLoginSessionState.vLoginSessions.size() - 1)
+            m_sGreetdLoginSessionState.iSelectedLoginSession++;
+        else
+            m_sGreetdLoginSessionState.iSelectedLoginSession = 0;
     } else {
         char buf[16] = {0};
         int  len     = (composed) ? xkb_compose_state_get_utf8(g_pSeatManager->m_pXKBComposeState, buf, sizeof(buf)) /* nullbyte */ + 1 :

@@ -6,3 +6,8 @@ using namespace Hyprutils::Memory;
 using namespace Hyprgraphics;
 #define SP CSharedPointer
 #define WP CWeakPointer
+
+struct SLoginSessionConfig {
+    std::string name = "";
+    std::string exec = "";
+};

@@ -4,6 +4,7 @@
   cmake,
   pkg-config,
   cairo,
+  glaze,
   file,
   libdrm,
   libGL,
@@ -41,6 +42,7 @@ stdenv.mkDerivation {
   buildInputs = [
     cairo
     file
+    glaze
     libdrm
     libGL
     libjpeg
@@ -60,7 +62,7 @@ stdenv.mkDerivation {
 
   cmakeFlags = lib.mapAttrsToList lib.cmakeFeature {
     HYPRLOCK_COMMIT = shortRev;
-    HYPRLOCK_VERSION_COMMIT = shortRev;
+    HYPRLOCK_VERSION_COMMIT = "";
   };
 
   meta = {
