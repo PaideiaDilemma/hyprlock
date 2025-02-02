@@ -125,7 +125,9 @@ int main(int argc, char** argv, char** envp) {
 
     if (greetdLogin) {
         CVarList sessionDirs{additionalSessionDirs, 0, ',', true};
-        loginSessions = gatherSessions(std::vector<std::string>{sessionDirs.begin(), sessionDirs.end()});
+        loginSessions                 = gatherSessions(std::vector<std::string>{sessionDirs.begin(), sessionDirs.end()});
+        const auto CONFIGUREDSESSIONS = g_pConfigManager->getLoginSessionConfigs();
+        loginSessions.insert(loginSessions.end(), CONFIGUREDSESSIONS.begin(), CONFIGUREDSESSIONS.end());
     }
 
     try {
