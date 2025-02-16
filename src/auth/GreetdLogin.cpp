@@ -214,8 +214,8 @@ void CGreetdLogin::init() {
         return;
     }
 
-    static auto* const PLOGINUSER = (Hyprlang::STRING*)(g_pConfigManager->getValuePtr("login:user"));
-    m_sLoginUserName              = *PLOGINUSER;
+    static const auto LOGINUSER = g_pConfigManager->getValue<Hyprlang::STRING>("login:user");
+    m_sLoginUserName            = *LOGINUSER;
     createSession();
 }
 

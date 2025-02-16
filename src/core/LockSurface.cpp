@@ -19,10 +19,10 @@ CSessionLockSurface::CSessionLockSurface(COutput* output) : output(output) {
         exit(1);
     }
 
-    const auto PFRACTIONALSCALING = (Hyprlang::INT* const*)g_pConfigManager->getValuePtr("general:fractional_scaling");
-    const auto ENABLE_FSV1        = **PFRACTIONALSCALING == 1 || /* auto enable */ (**PFRACTIONALSCALING == 2);
-    const auto PFRACTIONALMGR     = g_pHyprlock->getFractionalMgr();
-    const auto PVIEWPORTER        = g_pHyprlock->getViewporter();
+    static const auto FRACTIONALSCALING = g_pConfigManager->getValue<Hyprlang::INT>("general:fractional_scaling");
+    const auto        ENABLE_FSV1       = *FRACTIONALSCALING == 1 || /* auto enable */ (*FRACTIONALSCALING == 2);
+    const auto        PFRACTIONALMGR    = g_pHyprlock->getFractionalMgr();
+    const auto        PVIEWPORTER       = g_pHyprlock->getViewporter();
 
     if (ENABLE_FSV1 && PFRACTIONALMGR && PVIEWPORTER) {
         fractional = makeShared<CCWpFractionalScaleV1>(PFRACTIONALMGR->sendGetFractionalScale(surface->resource()));
@@ -94,7 +94,7 @@ void CSessionLockSurface::configure(const Vector2D& size_, uint32_t serial_) {
     if (!eglSurface) {
         eglSurface = g_pEGL->eglCreatePlatformWindowSurfaceEXT(g_pEGL->eglDisplay, g_pEGL->eglConfig, eglWindow, nullptr);
         if (!eglSurface) {
-            Debug::log(CRIT, "Couldn't create eglSurface: {}", (int)eglGetError());
+            Debug::log(CRIT, "Couldn't create eglSurface: {}", eglGetError());
             // Clean up resources to prevent leaks
             wl_egl_window_destroy(eglWindow);
             eglWindow = nullptr;

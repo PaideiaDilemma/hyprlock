@@ -11,21 +11,34 @@
 #include <sys/poll.h>
 #include <sys/mman.h>
 #include <fcntl.h>
-#include <signal.h>
+#include <csignal>
 #include <unistd.h>
-#include <assert.h>
-#include <string.h>
+#include <cassert>
+#include <cstring>
 #include <xf86drm.h>
 #include <filesystem>
 #include <fstream>
 #include <algorithm>
 #include <sdbus-c++/sdbus-c++.h>
 #include <hyprutils/os/Process.hpp>
+#include <malloc.h>
 
 using namespace Hyprutils::OS;
 
+static void setMallocThreshold() {
+#ifdef M_TRIM_THRESHOLD
+    // The default is 128 pages,
+    // which is very large and can lead to a lot of memory used for no reason
+    // because trimming hasn't happened
+    static const int PAGESIZE = sysconf(_SC_PAGESIZE);
+    mallopt(M_TRIM_THRESHOLD, 6 * PAGESIZE);
+#endif
+}
+
 CHyprlock::CHyprlock(const std::string& wlDisplay, const bool immediate, const bool immediateRender, const bool greetdLogin,
                      const std::vector<SLoginSessionConfig>& loginSessions) : m_bGreetdLogin(greetdLogin) {
+    setMallocThreshold();
+
     m_sGreetdLoginSessionState.vLoginSessions = loginSessions;
 
     m_sWaylandState.display = wl_display_connect(wlDisplay.empty() ? nullptr : wlDisplay.c_str());
@@ -37,13 +50,13 @@ CHyprlock::CHyprlock(const std::string& wlDisplay, const bool immediate, const b
     g_pEGL = std::make_unique<CEGL>(m_sWaylandState.display);
 
     if (!immediate) {
-        const auto PGRACE = (Hyprlang::INT* const*)g_pConfigManager->getValuePtr("general:grace");
-        m_tGraceEnds      = **PGRACE ? std::chrono::system_clock::now() + std::chrono::seconds(**PGRACE) : std::chrono::system_clock::from_time_t(0);
+        static const auto GRACE = g_pConfigManager->getValue<Hyprlang::INT>("general:grace");
+        m_tGraceEnds            = *GRACE ? std::chrono::system_clock::now() + std::chrono::seconds(*GRACE) : std::chrono::system_clock::from_time_t(0);
     } else
         m_tGraceEnds = std::chrono::system_clock::from_time_t(0);
 
-    const auto PIMMEDIATERENDER = (Hyprlang::INT* const*)g_pConfigManager->getValuePtr("general:immediate_render");
-    m_bImmediateRender          = immediateRender || **PIMMEDIATERENDER;
+    static const auto IMMEDIATERENDER = g_pConfigManager->getValue<Hyprlang::INT>("general:immediate_render");
+    m_bImmediateRender                = immediateRender || *IMMEDIATERENDER;
 
     const auto CURRENTDESKTOP = getenv("XDG_CURRENT_DESKTOP");
     const auto SZCURRENTD     = std::string{CURRENTDESKTOP ? CURRENTDESKTOP : ""};
@@ -160,7 +173,7 @@ void CHyprlock::addDmabufListener() {
             uint64_t modifier;
         };
         // An entry in the table has to be 16 bytes long
-        assert(sizeof(fm_entry) == 16);
+        static_assert(sizeof(fm_entry) == 16);
 
         uint32_t  n_modifiers = dma.formatTableSize / sizeof(fm_entry);
         fm_entry* fm_entry    = (struct fm_entry*)dma.formatTable;
@@ -299,7 +312,7 @@ void CHyprlock::run() {
     });
     m_sWaylandState.registry->setGlobalRemove([this](CCWlRegistry* r, uint32_t name) {
         Debug::log(LOG, "  | removed iface {}", name);
-        auto outputIt = std::find_if(m_vOutputs.begin(), m_vOutputs.end(), [name](const auto& other) { return other->name == name; });
+        auto outputIt = std::ranges::find_if(m_vOutputs, [name](const auto& other) { return other->name == name; });
         if (outputIt != m_vOutputs.end()) {
             g_pRenderer->removeWidgetsFor(outputIt->get()->sessionLockSurface.get());
             m_vOutputs.erase(outputIt);
@@ -381,8 +394,7 @@ void CHyprlock::run() {
                 events = poll(pollfds, fdcount, 5000);
 
                 if (events < 0) {
-                    if (preparedToRead)
-                        wl_display_cancel_read(m_sWaylandState.display);
+                    wl_display_cancel_read(m_sWaylandState.display);
 
                     if (errno == EINTR)
                         continue;
@@ -425,8 +437,7 @@ void CHyprlock::run() {
             float least = 10000;
             for (auto& t : m_vTimers) {
                 const auto TIME = std::clamp(t->leftMs(), 1.f, INFINITY);
-                if (TIME < least)
-                    least = TIME;
+                least           = std::min(TIME, least);
             }
 
             m_sLoopState.timersMutex.unlock();
@@ -448,7 +459,7 @@ void CHyprlock::run() {
 
     while (!m_bTerminate) {
         std::unique_lock lk(m_sLoopState.eventRequestMutex);
-        if (m_sLoopState.event == false)
+        if (!m_sLoopState.event)
             m_sLoopState.loopCV.wait_for(lk, std::chrono::milliseconds(5000), [this] { return m_sLoopState.event; });
 
         if (m_bTerminate)
@@ -549,7 +560,7 @@ void CHyprlock::clearPasswordBuffer() {
 }
 
 void CHyprlock::renderOutput(const std::string& stringPort) {
-    const auto MON = std::find_if(m_vOutputs.begin(), m_vOutputs.end(), [stringPort](const auto& other) { return other->stringPort == stringPort; });
+    const auto MON = std::ranges::find_if(m_vOutputs, [stringPort](const auto& other) { return other->stringPort == stringPort; });
 
     if (MON == m_vOutputs.end() || !MON->get())
         return;
@@ -608,10 +619,10 @@ void CHyprlock::onKey(uint32_t key, bool down) {
         return;
     }
 
-    if (down && std::find(m_vPressedKeys.begin(), m_vPressedKeys.end(), key) != m_vPressedKeys.end()) {
+    if (down && std::ranges::find(m_vPressedKeys, key) != m_vPressedKeys.end()) {
         Debug::log(ERR, "Invalid key down event (key already pressed?)");
         return;
-    } else if (!down && std::find(m_vPressedKeys.begin(), m_vPressedKeys.end(), key) == m_vPressedKeys.end()) {
+    } else if (!down && std::ranges::find(m_vPressedKeys, key) == m_vPressedKeys.end()) {
         Debug::log(ERR, "Invalid key down event (stray release event?)");
         return;
     }
@@ -665,9 +676,9 @@ void CHyprlock::handleKeySym(xkb_keysym_t sym, bool composed) {
     } else if (SYM == XKB_KEY_Return || SYM == XKB_KEY_KP_Enter) {
         Debug::log(LOG, "Authenticating");
 
-        static auto* const PIGNOREEMPTY = (Hyprlang::INT* const*)g_pConfigManager->getValuePtr("general:ignore_empty_input");
+        static const auto IGNOREEMPTY = g_pConfigManager->getValue<Hyprlang::INT>("general:ignore_empty_input");
 
-        if (m_sPasswordState.passBuffer.empty() && **PIGNOREEMPTY) {
+        if (m_sPasswordState.passBuffer.empty() && *IGNOREEMPTY) {
             Debug::log(LOG, "Ignoring empty input");
             return;
         }

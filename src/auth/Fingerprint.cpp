@@ -36,10 +36,10 @@ static std::map<std::string, MatchResult> s_mapStringToTestType = {{"verify-no-m
                                                                    {"verify-unknown-error", MATCH_UNKNOWN_ERROR}};
 
 CFingerprint::CFingerprint() {
-    static auto* const PFINGERPRINTREADY   = (Hyprlang::STRING*)(g_pConfigManager->getValuePtr("auth:fingerprint:ready_message"));
-    m_sFingerprintReady                    = *PFINGERPRINTREADY;
-    static auto* const PFINGERPRINTPRESENT = (Hyprlang::STRING*)(g_pConfigManager->getValuePtr("auth:fingerprint:present_message"));
-    m_sFingerprintPresent                  = *PFINGERPRINTPRESENT;
+    static const auto FINGERPRINTREADY   = g_pConfigManager->getValue<Hyprlang::STRING>("auth:fingerprint:ready_message");
+    m_sFingerprintReady                  = *FINGERPRINTREADY;
+    static const auto FINGERPRINTPRESENT = g_pConfigManager->getValue<Hyprlang::STRING>("auth:fingerprint:present_message");
+    m_sFingerprintPresent                = *FINGERPRINTPRESENT;
 }
 
 CFingerprint::~CFingerprint() {
@@ -47,8 +47,15 @@ CFingerprint::~CFingerprint() {
 }
 
 void CFingerprint::init() {
-    m_sDBUSState.connection = sdbus::createSystemBusConnection();
-    m_sDBUSState.login      = sdbus::createProxy(*m_sDBUSState.connection, sdbus::ServiceName{"org.freedesktop.login1"}, sdbus::ObjectPath{"/org/freedesktop/login1"});
+    try {
+        m_sDBUSState.connection = sdbus::createSystemBusConnection();
+        m_sDBUSState.login      = sdbus::createProxy(*m_sDBUSState.connection, sdbus::ServiceName{"org.freedesktop.login1"}, sdbus::ObjectPath{"/org/freedesktop/login1"});
+    } catch (sdbus::Error& e) {
+        Debug::log(ERR, "fprint: Failed to setup dbus ({})", e.what());
+        m_sDBUSState.connection.reset();
+        return;
+    }
+
     m_sDBUSState.login->getPropertyAsync("PreparingForSleep").onInterface(LOGIN_MANAGER).uponReplyInvoke([this](std::optional<sdbus::Error> e, sdbus::Variant preparingForSleep) {
         if (e) {
             Debug::log(WARN, "fprint: Failed getting value for PreparingForSleep: {}", e->what());
@@ -166,8 +173,8 @@ void CFingerprint::handleVerifyStatus(const std::string& result, bool done) {
                 m_sFailureReason = "Fingerprint auth disabled (too many failed attempts)";
             } else {
                 done                         = false;
-                static const auto RETRYDELAY = **(Hyprlang::INT* const*)(g_pConfigManager->getValuePtr("auth:fingerprint:retry_delay"));
-                g_pHyprlock->addTimer(std::chrono::milliseconds(RETRYDELAY), [](std::shared_ptr<CTimer> self, void* data) { ((CFingerprint*)data)->startVerify(true); }, this);
+                static const auto RETRYDELAY = g_pConfigManager->getValue<Hyprlang::INT>("auth:fingerprint:retry_delay");
+                g_pHyprlock->addTimer(std::chrono::milliseconds(*RETRYDELAY), [](std::shared_ptr<CTimer> self, void* data) { ((CFingerprint*)data)->startVerify(true); }, this);
                 m_sFailureReason = "Fingerprint did not match";
             }
             break;

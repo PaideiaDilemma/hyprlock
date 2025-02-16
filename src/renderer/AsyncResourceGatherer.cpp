@@ -130,7 +130,7 @@ void CAsyncResourceGatherer::gather() {
         }
     }
 
-    while (!g_pHyprlock->m_bTerminate && std::any_of(scframes.begin(), scframes.end(), [](const auto& d) { return !d->m_asset.ready; })) {
+    while (!g_pHyprlock->m_bTerminate && std::ranges::any_of(scframes, [](const auto& d) { return !d->m_asset.ready; })) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
@@ -215,15 +215,15 @@ void CAsyncResourceGatherer::renderText(const SPreloadRequest& rq) {
     target.type = TARGET_IMAGE; /* text is just an image lol */
     target.id   = rq.id;
 
-    const int          FONTSIZE   = rq.props.contains("font_size") ? std::any_cast<int>(rq.props.at("font_size")) : 16;
-    const CHyprColor   FONTCOLOR  = rq.props.contains("color") ? std::any_cast<CHyprColor>(rq.props.at("color")) : CHyprColor(1.0, 1.0, 1.0, 1.0);
-    const std::string  FONTFAMILY = rq.props.contains("font_family") ? std::any_cast<std::string>(rq.props.at("font_family")) : "Sans";
-    const bool         ISCMD      = rq.props.contains("cmd") ? std::any_cast<bool>(rq.props.at("cmd")) : false;
+    const int         FONTSIZE   = rq.props.contains("font_size") ? std::any_cast<int>(rq.props.at("font_size")) : 16;
+    const CHyprColor  FONTCOLOR  = rq.props.contains("color") ? std::any_cast<CHyprColor>(rq.props.at("color")) : CHyprColor(1.0, 1.0, 1.0, 1.0);
+    const std::string FONTFAMILY = rq.props.contains("font_family") ? std::any_cast<std::string>(rq.props.at("font_family")) : "Sans";
+    const bool        ISCMD      = rq.props.contains("cmd") ? std::any_cast<bool>(rq.props.at("cmd")) : false;
 
-    static auto* const TRIM = (Hyprlang::INT* const*)g_pConfigManager->getValuePtr("general:text_trim");
-    std::string        text = ISCMD ? g_pHyprlock->spawnSync(rq.asset) : rq.asset;
+    static const auto TRIM = g_pConfigManager->getValue<Hyprlang::INT>("general:text_trim");
+    std::string       text = ISCMD ? g_pHyprlock->spawnSync(rq.asset) : rq.asset;
 
-    if (**TRIM) {
+    if (*TRIM) {
         text.erase(0, text.find_first_not_of(" \n\r\t"));
         text.erase(text.find_last_not_of(" \n\r\t") + 1);
     }
@@ -319,7 +319,7 @@ void CAsyncResourceGatherer::asyncAssetSpinLock() {
     while (!g_pHyprlock->m_bTerminate) {
 
         std::unique_lock lk(asyncLoopState.requestsMutex);
-        if (asyncLoopState.pending == false) // avoid a lock if a thread managed to request something already since we .unlock()ed
+        if (!asyncLoopState.pending) // avoid a lock if a thread managed to request something already since we .unlock()ed
             asyncLoopState.requestsCV.wait_for(lk, std::chrono::seconds(5), [this] { return asyncLoopState.pending; }); // wait for events
 
         asyncLoopState.pending = false;
@@ -349,7 +349,7 @@ void CAsyncResourceGatherer::asyncAssetSpinLock() {
 
             // plant timer for callback
             if (r.callback)
-                g_pHyprlock->addTimer(std::chrono::milliseconds(0), timerCallback, new STimerCallbackData{r.callback, r.callbackData});
+                g_pHyprlock->addTimer(std::chrono::milliseconds(0), timerCallback, new STimerCallbackData{.cb = r.callback, .data = r.callbackData});
         }
     }
 }
