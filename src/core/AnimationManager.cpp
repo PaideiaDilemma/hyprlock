@@ -31,7 +31,7 @@ void updateColorVariable(CAnimatedVariable<CHyprColor>& av, const float POINTY, 
     const auto&                L1 = av.begun().asOkLab();
     const auto&                L2 = av.goal().asOkLab();
 
-    static const auto          lerp = [](const float one, const float two, const float progress) -> float { return one + (two - one) * progress; };
+    static const auto          lerp = [](const float one, const float two, const float progress) -> float { return one + ((two - one) * progress); };
 
     const Hyprgraphics::CColor lerped = Hyprgraphics::CColor::SOkLab{
         .l = lerp(L1.l, L2.l, POINTY),
@@ -57,7 +57,7 @@ void updateGradientVariable(CAnimatedVariable<CGradientValueData>& av, const flo
         const auto&                L1 = sourceCol.asOkLab();
         const auto&                L2 = targetCol.asOkLab();
 
-        static const auto          lerp = [](const float one, const float two, const float progress) -> float { return one + (two - one) * progress; };
+        static const auto          lerp = [](const float one, const float two, const float progress) -> float { return one + ((two - one) * progress); };
 
         const Hyprgraphics::CColor lerped = Hyprgraphics::CColor::SOkLab{
             .l = lerp(L1.l, L2.l, POINTY),
@@ -77,7 +77,7 @@ void updateGradientVariable(CAnimatedVariable<CGradientValueData>& av, const flo
 }
 
 void CHyprlockAnimationManager::tick() {
-    static auto* const PANIMATIONSENABLED = (Hyprlang::INT* const*)g_pConfigManager->getValuePtr("animations:enabled");
+    static const auto ANIMATIONSENABLED = g_pConfigManager->getValue<Hyprlang::INT>("animations:enabled");
     for (size_t i = 0; i < m_vActiveAnimatedVariables.size(); i++) {
         const auto PAV = m_vActiveAnimatedVariables[i].lock();
         if (!PAV || !PAV->ok())
@@ -86,7 +86,7 @@ void CHyprlockAnimationManager::tick() {
         const auto SPENT   = PAV->getPercent();
         const auto PBEZIER = getBezier(PAV->getBezierName());
         const auto POINTY  = PBEZIER->getYForPoint(SPENT);
-        const bool WARP    = !**PANIMATIONSENABLED || SPENT >= 1.f;
+        const bool WARP    = !*ANIMATIONSENABLED || SPENT >= 1.f;
 
         switch (PAV->m_Type) {
             case AVARTYPE_FLOAT: {

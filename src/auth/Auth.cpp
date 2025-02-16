@@ -10,15 +10,15 @@
 #include <memory>
 
 CAuth::CAuth(bool sessionLogin) {
-    static auto* const PENABLEPAM         = (Hyprlang::INT* const*)g_pConfigManager->getValuePtr("auth:pam:enabled");
-    static auto* const PENABLEFINGERPRINT = (Hyprlang::INT* const*)g_pConfigManager->getValuePtr("auth:fingerprint:enabled");
+    static const auto ENABLEPAM         = g_pConfigManager->getValue<Hyprlang::INT>("auth:pam:enabled");
+    static const auto ENABLEFINGERPRINT = g_pConfigManager->getValue<Hyprlang::INT>("auth:fingerprint:enabled");
 
     if (sessionLogin)
         m_vImpls.push_back(std::make_shared<CGreetdLogin>());
     else {
-        if (**PENABLEPAM)
+        if (*ENABLEPAM)
             m_vImpls.push_back(std::make_shared<CPam>());
-        if (**PENABLEFINGERPRINT)
+        if (*ENABLEFINGERPRINT)
             m_vImpls.push_back(std::make_shared<CFingerprint>());
     }
 
