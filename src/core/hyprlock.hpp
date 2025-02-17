@@ -124,8 +124,9 @@ class CHyprlock {
         uint32_t                         iSelectedLoginSession = 0;
         std::vector<SLoginSessionConfig> vLoginSessions;
     } m_sGreetdLoginSessionState;
+    SLoginSessionConfig getSelectedGreetdLoginSession();
 
-    std::string m_sCurrentDesktop = "";
+    std::string         m_sCurrentDesktop = "";
 
   private:
     struct {
