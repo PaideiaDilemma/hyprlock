@@ -4,7 +4,6 @@
   cmake,
   pkg-config,
   cairo,
-  glaze,
   file,
   libdrm,
   libGL,
@@ -42,7 +41,6 @@ stdenv.mkDerivation {
   buildInputs = [
     cairo
     file
-    glaze
     libdrm
     libGL
     libjpeg

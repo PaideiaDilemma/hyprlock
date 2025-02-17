@@ -60,6 +60,9 @@ CHyprlock::CHyprlock(const std::string& wlDisplay, const bool immediate, const b
     const auto CURRENTDESKTOP = getenv("XDG_CURRENT_DESKTOP");
     const auto SZCURRENTD     = std::string{CURRENTDESKTOP ? CURRENTDESKTOP : ""};
     m_sCurrentDesktop         = SZCURRENTD;
+
+    if (greetdLogin)
+        m_sGreetdLoginSessionState.vLoginSessions = loginSessions;
 }
 
 CHyprlock::~CHyprlock() {
@@ -151,6 +154,12 @@ gbm_device* CHyprlock::createGBMDevice(drmDevice* dev) {
 
     free(renderNode);
     return gbm_create_device(fd);
+}
+
+SLoginSessionConfig CHyprlock::getSelectedGreetdLoginSession() {
+    RASSERT(m_sGreetdLoginSessionState.iSelectedLoginSession < m_sGreetdLoginSessionState.vLoginSessions.size(), "Invalid selected login session");
+
+    return m_sGreetdLoginSessionState.vLoginSessions[m_sGreetdLoginSessionState.iSelectedLoginSession];
 }
 
 void CHyprlock::addDmabufListener() {

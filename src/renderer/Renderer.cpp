@@ -431,7 +431,7 @@ std::vector<SP<IWidget>>& CRenderer::getOrCreateWidgetsFor(const CSessionLockSur
                 createWidget<CShape>(widgets[surf.m_outputID]);
             } else if (c.type == "image") {
                 createWidget<CImage>(widgets[surf.m_outputID]);
-            } else if (g_pHyprlock->m_bGreetdLogin && c.type == "session-picker") {
+            } else if (c.type == "session-picker") {
                 createWidget<CSessionPicker>(widgets[surf.m_outputID]);
             } else {
                 Debug::log(ERR, "Unknown widget type: {}", c.type);

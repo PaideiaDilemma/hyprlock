@@ -18,9 +18,9 @@ class CSessionLockSurface;
 class CSessionPicker : public IWidget {
   public:
     struct SSessionAsset {
-        SLoginSessionConfig loginSession;
-        std::string         textResourceID;
-        SPreloadedAsset*    textAsset = nullptr;
+        SLoginSessionConfig m_loginSession;
+        std::string         m_textResourceID;
+        SPreloadedAsset*    m_textAsset = nullptr;
     };
 
     CSessionPicker()  = default;
@@ -37,19 +37,19 @@ class CSessionPicker : public IWidget {
     void                       requestSessionEntryTexts();
 
     WP<CSessionPicker>         m_self;
-    std::vector<SSessionAsset> vLoginSessions;
+    std::vector<SSessionAsset> m_loginSessions;
 
-    Vector2D                   viewport;
-    Vector2D                   configPos;
-    Vector2D                   size;
-    std::string                halign       = "";
-    std::string                valign       = "";
-    int                        rounding     = -1;
-    int                        borderSize   = -1;
-    int                        entryHeight  = -1;
-    int                        entrySpacing = -1;
+    Vector2D                   m_viewport;
+    Vector2D                   m_configPos;
+    Vector2D                   m_size;
+    std::string                m_halign       = "";
+    std::string                m_valign       = "";
+    int                        m_rounding     = -1;
+    int                        m_borderSize   = -1;
+    int                        m_entryHeight  = -1;
+    int                        m_entrySpacing = -1;
 
-    size_t                     biggestEntryTextWidth = 0;
+    size_t                     m_biggestEntryTextWidth = 0;
 
     struct {
         CHyprColor          inner;
@@ -57,8 +57,8 @@ class CSessionPicker : public IWidget {
 
         CGradientValueData* border         = nullptr;
         CGradientValueData* selectedBorder = nullptr;
-    } m_sColorConfig;
+    } m_colorConfig;
 
-    CShadowable shadow;
-    bool        updateShadow = true;
+    CShadowable m_shadow;
+    bool        m_updateShadow = true;
 };

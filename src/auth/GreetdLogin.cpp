@@ -1,25 +1,52 @@
 #include "GreetdLogin.hpp"
 #include "../config/ConfigManager.hpp"
 #include "../core/hyprlock.hpp"
-#include "src/auth/Auth.hpp"
-#include "src/core/AnimationManager.hpp"
+#include "../helpers/NotJson.hpp"
+#include "../helpers/Log.hpp"
 
-#include <cstddef>
-#include <glaze/glaze.hpp>
 #include <hyprutils/string/VarList.hpp>
 #include <hyprutils/os/Process.hpp>
 #include <sys/socket.h>
 #include <sys/un.h>
-#include <variant>
 
-int socketConnect() {
+static constexpr eGreetdAuthMessageType messageTypeFromString(const std::string_view& type) {
+    if (type == "visible")
+        return GREETD_AUTH_VISIBLE;
+    if (type == "secret")
+        return GREETD_AUTH_SECRET;
+    if (type == "info")
+        return GREETD_AUTH_INFO;
+    if (type == "error")
+        return GREETD_AUTH_ERROR;
+    return GREETD_AUTH_ERROR;
+}
+
+static constexpr eGreetdErrorMessageType errorTypeFromString(const std::string_view& type) {
+    if (type == "auth_error")
+        return GREETD_ERROR_AUTH;
+    if (type == "error")
+        return GREETD_ERROR;
+    return GREETD_ERROR;
+}
+
+static constexpr std::string getErrorString(eRequestError error) {
+    switch (error) {
+        case GREETD_REQUEST_ERROR_SEND: return "Failed to send payload to greetd";
+        case GREETD_REQUEST_ERROR_READ: return "Failed to read response from greetd";
+        case GREETD_REQUEST_ERROR_PARSE: return "Failed to parse response from greetd";
+        case GREETD_REQUEST_ERROR_FORMAT: return "Invalid greetd response";
+        default: return "Unknown error";
+    }
+};
+
+static int socketConnect() {
     const int FD = socket(AF_UNIX, SOCK_STREAM, 0);
     if (FD < 0) {
         Debug::log(ERR, "Failed to create socket");
         return -1;
     }
 
-    sockaddr_un serverAddress = {0};
+    sockaddr_un serverAddress = {.sun_family = 0};
     serverAddress.sun_family  = AF_UNIX;
 
     const auto PGREETDSOCK = std::getenv("GREETD_SOCK");
@@ -39,7 +66,8 @@ int socketConnect() {
     return FD;
 }
 
-int sendToSock(int fd, const std::string& PAYLOAD) {
+// send <payload-length> <payload>
+static int sendToSock(int fd, const std::string& PAYLOAD) {
     const uint32_t LEN   = PAYLOAD.size();
     uint32_t       wrote = 0;
 
@@ -68,7 +96,8 @@ int sendToSock(int fd, const std::string& PAYLOAD) {
     return 0;
 }
 
-std::string readFromSock(int fd) {
+// read <payload-length> <payload>
+static std::string readFromSock(int fd) {
     uint32_t len     = 0;
     uint32_t numRead = 0;
 
@@ -83,7 +112,7 @@ std::string readFromSock(int fd) {
     }
 
     numRead = 0;
-    std::string msg(len + 1, '\0');
+    std::string msg(len, '\0');
 
     while (numRead < len) {
         auto n = read(fd, msg.data() + numRead, len - numRead);
@@ -98,23 +127,17 @@ std::string readFromSock(int fd) {
     return msg;
 }
 
-bool sendGreetdRequest(int fd, const VGreetdRequest& request) {
+static bool sendGreetdRequest(int fd, const NNotJson::SObject& request) {
     if (fd < 0) {
         Debug::log(ERR, "[GreetdLogin] Invalid socket fd");
         return false;
     }
 
-    std::string payload;
-    const auto  GLZERROR = glz::write_json(request, payload);
-    if (GLZERROR != glz::error_code::none) {
-        const auto GLZERRORSTR = glz::format_error(GLZERROR, payload);
-        Debug::log(ERR, "Failed to serialize greetd request: {}", GLZERRORSTR);
-        return false;
-    }
+    const auto PAYLOAD = NNotJson::serialize(request);
 
-    Debug::log(INFO, "[GreetdLogin] Request: {}", payload);
+    Debug::log(TRACE, "[GreetdLogin] Request: {}", PAYLOAD);
 
-    if (sendToSock(fd, payload) < 0) {
+    if (sendToSock(fd, PAYLOAD) < 0) {
         Debug::log(ERR, "[GreetdLogin] Failed to send payload to greetd");
         return false;
     }
@@ -122,43 +145,48 @@ bool sendGreetdRequest(int fd, const VGreetdRequest& request) {
     return true;
 }
 
-std::optional<VGreetdResponse> CGreetdLogin::request(const VGreetdRequest& req) {
-    if (!sendGreetdRequest(m_iSocketFD, req)) {
-        m_bOk = false;
-        return std::nullopt;
+std::expected<NNotJson::SObject, eRequestError> CGreetdLogin::request(const NNotJson::SObject& req) {
+    if (!sendGreetdRequest(m_socketFD, req)) {
+        m_ok = false;
+        return std::unexpected(GREETD_REQUEST_ERROR_SEND);
     }
 
-    const auto RESPONSESTR = readFromSock(m_iSocketFD);
+    const auto RESPONSESTR = readFromSock(m_socketFD);
     if (RESPONSESTR.empty()) {
         Debug::log(ERR, "[GreetdLogin] Failed to read response from greetd");
-        m_bOk = false;
-        return std::nullopt;
+        m_ok = false;
+        return std::unexpected(GREETD_REQUEST_ERROR_READ);
     }
 
-    Debug::log(INFO, "[GreetdLogin] Response: {}", RESPONSESTR);
+    Debug::log(TRACE, "[GreetdLogin] Response: {}", RESPONSESTR);
 
-    VGreetdResponse res;
-    const auto      GLZERROR = glz::read_json(res, RESPONSESTR);
-    if (GLZERROR != glz::error_code::none) {
-        const auto GLZERRORSTR = glz::format_error(GLZERROR, RESPONSESTR);
-        Debug::log(ERR, "Failed to parse response from greetd: {}", GLZERRORSTR);
-        m_bOk = false;
-        return std::nullopt;
+    const auto [RESULTOBJ, ERROR] = NNotJson::parse(RESPONSESTR);
+    if (ERROR.status != NNotJson::SError::NOT_JSON_OK) {
+        Debug::log(ERR, "[GreetdLogin] Failed to parse response from greetd: {}", ERROR.message);
+        m_ok = false;
+        return std::unexpected(GREETD_REQUEST_ERROR_PARSE);
     }
 
-    return res;
+    if (!RESULTOBJ.values.contains("type")) {
+        Debug::log(ERR, "[GreetdLogin] Invalid greetd response");
+        m_ok = false;
+        return std::unexpected(GREETD_REQUEST_ERROR_PARSE);
+    }
+
+    return RESULTOBJ;
 }
 
-void CGreetdLogin::startSession() {
-    m_sAuthState.startingSession = true;
+void CGreetdLogin::startSessionAfterSuccess() {
+    const auto                  SELECTEDSESSION = g_pHyprlock->getSelectedGreetdLoginSession();
+    Hyprutils::String::CVarList args(SELECTEDSESSION.exec, 0, ' ');
 
-    SGreetdStartSession startSession;
-    // TODO: not like this
-    Hyprutils::String::CVarList args(g_pHyprlock->m_sGreetdLoginSessionState.vLoginSessions[g_pHyprlock->m_sGreetdLoginSessionState.iSelectedLoginSession].exec, 0, ' ');
-    startSession.cmd = std::vector<std::string>(args.begin(), args.end());
+    NNotJson::SObject           startSession{.values = {
+                                       {"type", "start_session"},
+                                   }};
+    startSession.values["cmd"] = std::vector<std::string>{args.begin(), args.end()};
 
-    if (!sendGreetdRequest(m_iSocketFD, VGreetdRequest{startSession}))
-        m_bOk = false;
+    if (!sendGreetdRequest(m_socketFD, startSession))
+        m_ok = false;
     else {
         if (g_pHyprlock->m_sCurrentDesktop == "Hyprland")
             g_pHyprlock->spawnSync("hyprctl dispatch exit");
@@ -168,36 +196,56 @@ void CGreetdLogin::startSession() {
 }
 
 void CGreetdLogin::cancelSession() {
-    SGreetdCancelSession cancelSession;
+    NNotJson::SObject cancelSession{
+        .values =
+            {
+                {"type", "cancel_session"},
+            },
+    };
 
-    const auto           RESPONSE = request(VGreetdRequest{cancelSession});
+    const auto RESPONSE = request(cancelSession);
     if (!RESPONSE.has_value())
-        m_bOk = false;
+        m_ok = false;
+}
 
-    // ?? For some reason cancelSession is sometimes answered by an OS Error 111
+inline static const std::string& getType(NNotJson::SObject& obj) {
+    return std::get<std::string>(obj.values["type"]);
 }
 
 void CGreetdLogin::createSession() {
-    SGreetdCreateSession createSession;
-    createSession.username = m_sLoginUserName;
+    NNotJson::SObject createSession = {
+        .values =
+            {
+                {"type", "create_session"},
+                {"username", m_loginUserName},
+            },
+    };
 
-    const auto RESPONSE = request(VGreetdRequest{createSession});
+    Debug::log(INFO, "Creating session for user {}", m_loginUserName);
 
-    if (!RESPONSE.has_value()) {
-        m_bOk = false;
+    auto RESPONSEOPT = request(createSession);
+    if (!RESPONSEOPT.has_value()) {
+        Debug::log(ERR, "Failed to create session: {}", getErrorString(RESPONSEOPT.error()));
+        m_ok = false;
         return;
     }
 
-    if (std::holds_alternative<SGreetdErrorResponse>(RESPONSE.value())) {
+    if (getType(RESPONSEOPT.value()) == "error") {
         // try to restart
         cancelSession();
-        const auto RESPONSE = request(VGreetdRequest{createSession});
-        if (!RESPONSE.has_value() || std::holds_alternative<SGreetdErrorResponse>(RESPONSE.value()))
-            m_bOk = false;
-    } else if (std::holds_alternative<SGreetdSuccessResponse>(RESPONSE.value()))
-        startSession();
-    else if (std::holds_alternative<SGreetdAuthMessageResponse>(RESPONSE.value()))
-        m_sAuthState.message = std::get<SGreetdAuthMessageResponse>(RESPONSE.value());
+        auto RESPONSEOPT = request(createSession);
+        if (!RESPONSEOPT.has_value()) {
+            Debug::log(ERR, "Failed to create session: {}", getErrorString(RESPONSEOPT.error()));
+            m_ok = false;
+            return;
+        }
+        if (getType(RESPONSEOPT.value()) == "error")
+            m_ok = false;
+    } else if (getType(RESPONSEOPT.value()) == "auth_message") {
+        m_state.authMessageType = messageTypeFromString(std::get<std::string>(RESPONSEOPT.value().values["auth_message_type"]));
+        m_state.message         = std::get<std::string>(RESPONSEOPT.value().values["auth_message"]);
+    } else if (getType(RESPONSEOPT.value()) == "success")
+        startSessionAfterSuccess();
     else
         Debug::log(ERR, "Unexpected response from greetd");
 }
@@ -208,86 +256,140 @@ void CGreetdLogin::recreateSession() {
 }
 
 void CGreetdLogin::init() {
-    m_iSocketFD = socketConnect();
-    if (m_iSocketFD < 0) {
-        m_bOk = false;
-        return;
-    }
-
     const auto LOGINUSER = g_pConfigManager->getValue<Hyprlang::STRING>("login:user");
-    m_sLoginUserName     = *LOGINUSER;
-    createSession();
+    m_loginUserName      = *LOGINUSER;
+
+    Debug::log(LOG, "Login user: {}", m_loginUserName);
+
+    m_thread = std::thread([this]() {
+        m_socketFD = socketConnect();
+        if (m_socketFD < 0) {
+            m_ok = false;
+            return;
+        }
+
+        createSession();
+
+        while (true) {
+            waitForInput();
+            processInput();
+        }
+    });
 }
 
-void CGreetdLogin::handleInput(const std::string& input) {
-    if (!m_bOk)
+void CGreetdLogin::processInput() {
+    if (!m_ok)
         return;
 
     // We have some auth problem
-    if (m_sAuthState.message.auth_message_type == GREETD_AUTH_ERROR) {
-        g_pAuth->enqueueFail(m_sAuthState.message.auth_message, AUTH_IMPL_GREETD);
-        recreateSession();
+    if (m_state.authMessageType == GREETD_AUTH_ERROR) {
+        g_pAuth->enqueueFail(m_state.message, AUTH_IMPL_GREETD);
+        createSession();
         return;
     }
 
     // Greetd sends some info messages regarding auth (usually directly from pam itself)
-    while (m_sAuthState.message.auth_message_type == GREETD_AUTH_INFO) {
-        const auto RESPONSE = request(VGreetdRequest{SGreetdPostAuthMessageResponse{}});
-        if (!RESPONSE.has_value()) {
-            m_bOk = false;
+    while (m_state.authMessageType == GREETD_AUTH_INFO) {
+        // Empty reply
+        NNotJson::SObject postAuthMessageResponse{
+            .values =
+                {
+                    {"type", "post_auth_message_response"},
+                    {"response", ""},
+                },
+        };
+        auto RESPONSEOPT = request(postAuthMessageResponse);
+        if (!RESPONSEOPT.has_value()) {
+            Debug::log(ERR, "Failed to create session: {}", getErrorString(RESPONSEOPT.error()));
+            m_ok = false;
             return;
-        } else if (std::holds_alternative<SGreetdErrorResponse>(RESPONSE.value())) {
-            m_sAuthState.error = std::get<SGreetdErrorResponse>(RESPONSE.value());
-            g_pAuth->enqueueFail(m_sAuthState.error.description, AUTH_IMPL_GREETD);
-            recreateSession();
-            return;
-        } else if (std::holds_alternative<SGreetdSuccessResponse>(RESPONSE.value())) {
-            startSession();
-            return;
-        }
+        } else if (getType(RESPONSEOPT.value()) == "error") {
+            m_state.error     = std::get<std::string>(RESPONSEOPT.value().values["description"]);
+            m_state.errorType = errorTypeFromString(std::get<std::string>(RESPONSEOPT.value().values["error_type"]));
+            if (!m_state.error.empty())
+                g_pAuth->enqueueFail(m_state.error, AUTH_IMPL_GREETD);
 
-        m_sAuthState.message = std::get<SGreetdAuthMessageResponse>(RESPONSE.value());
+            createSession();
+            return;
+        } else if (getType(RESPONSEOPT.value()) == "success") {
+            startSessionAfterSuccess();
+            return;
+        } else if (getType(RESPONSEOPT.value()) == "auth_message") {
+            m_state.authMessageType = messageTypeFromString(std::get<std::string>(RESPONSEOPT.value().values["auth_message_type"]));
+            m_state.message         = std::get<std::string>(RESPONSEOPT.value().values["auth_message"]);
+            if (m_state.authMessageType == GREETD_AUTH_ERROR) {
+                if (!m_state.message.empty())
+                    g_pAuth->enqueueFail(m_state.message, AUTH_IMPL_GREETD);
+                createSession();
+                return;
+            }
+        }
     }
 
     // We have a auth_message_type of GREETD_AUTH_VISIBLE or GREETD_AUTH_SECRET and respond to it
-    SGreetdPostAuthMessageResponse postAuthMessageResponse;
-    postAuthMessageResponse.response = input;
+    NNotJson::SObject postAuthMessageResponse{
+        .values =
+            {
+                {"type", "post_auth_message_response"},
+                {"response", m_state.input},
+            },
+    };
 
-    const auto RESPONSE = request(VGreetdRequest{postAuthMessageResponse});
-    if (!RESPONSE.has_value())
-        m_bOk = false;
-    else if (std::holds_alternative<SGreetdErrorResponse>(RESPONSE.value())) {
-        m_sAuthState.error = std::get<SGreetdErrorResponse>(RESPONSE.value());
-        if (m_sAuthState.error.error_type == GREETD_ERROR_AUTH)
-            g_pAuth->enqueueFail(m_sAuthState.error.description, AUTH_IMPL_GREETD);
-        recreateSession();
-    } else if (std::holds_alternative<SGreetdSuccessResponse>(RESPONSE.value())) {
-        startSession();
+    auto RESPONSEOPT = request(postAuthMessageResponse);
+    if (!RESPONSEOPT.has_value()) {
+        Debug::log(ERR, "Failed to create session: {}", getErrorString(RESPONSEOPT.error()));
+        m_ok = false;
+    } else if (getType(RESPONSEOPT.value()) == "error") {
+        m_state.error     = std::get<std::string>(RESPONSEOPT.value().values["description"]);
+        m_state.errorType = errorTypeFromString(std::get<std::string>(RESPONSEOPT.value().values["error_type"]));
+        if (m_state.errorType == eGreetdErrorMessageType::GREETD_ERROR_AUTH && !m_state.error.empty())
+            g_pAuth->enqueueFail(m_state.error, AUTH_IMPL_GREETD);
+        createSession();
+    } else if (getType(RESPONSEOPT.value()) == "success") {
+        startSessionAfterSuccess();
     }
+
+    m_state.inputSubmitted = false;
+
+    // More auth messages? fallthrough
 };
 
+void CGreetdLogin::waitForInput() {
+    std::unique_lock<std::mutex> lk(m_state.inputMutex);
+    m_state.inputSubmittedCondition.wait(lk, [this] { return m_state.inputSubmitted || !m_ok; });
+}
+
+void CGreetdLogin::handleInput(const std::string& input) {
+    std::unique_lock<std::mutex> lk(m_state.inputMutex);
+
+    m_state.input          = input;
+    m_state.inputSubmitted = true;
+
+    m_state.inputSubmittedCondition.notify_all();
+}
+
 bool CGreetdLogin::checkWaiting() {
-    return m_sAuthState.startingSession;
+    return m_state.inputSubmitted;
 }
 
 std::optional<std::string> CGreetdLogin::getLastFailText() {
-    if (!m_sAuthState.error.description.empty()) {
-        return m_sAuthState.error.description;
-    } else if (m_sAuthState.message.auth_message_type == GREETD_AUTH_ERROR)
-        return m_sAuthState.message.auth_message;
+    if (!m_state.error.empty()) {
+        return m_state.error;
+    } else if (m_state.authMessageType == GREETD_AUTH_ERROR)
+        return m_state.message;
 
     return std::nullopt;
 }
 
 std::optional<std::string> CGreetdLogin::getLastPrompt() {
-    if (!m_sAuthState.message.auth_message.empty())
-        return m_sAuthState.message.auth_message;
+    if (!m_state.message.empty())
+        return m_state.message;
     return std::nullopt;
 }
 
 void CGreetdLogin::terminate() {
-    if (m_iSocketFD > 0)
-        close(m_iSocketFD);
+    if (m_socketFD > 0)
+        close(m_socketFD);
 
-    m_iSocketFD = -1;
+    m_socketFD = -1;
 }
