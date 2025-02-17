@@ -60,6 +60,9 @@ CHyprlock::CHyprlock(const std::string& wlDisplay, const bool immediate, const b
     const auto CURRENTDESKTOP = getenv("XDG_CURRENT_DESKTOP");
     const auto SZCURRENTD     = std::string{CURRENTDESKTOP ? CURRENTDESKTOP : ""};
     m_sCurrentDesktop         = SZCURRENTD;
+
+    if (greetdLogin)
+        m_sGreetdLoginSessionState.vLoginSessions = loginSessions;
 }
 
 CHyprlock::~CHyprlock() {
