@@ -30,6 +30,9 @@
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.systems.follows = "systems";
     };
+
+    # Used for checks
+    hyprland.url = "github:hyprwm/hyprland";
   };
 
   outputs = {
@@ -51,6 +54,7 @@
     packages = eachSystem (system: {
       default = self.packages.${system}.hyprlock;
       inherit (pkgsFor.${system}) hyprlock;
+      inherit (pkgsFor.${system}) hyprlock_tester;
     });
 
     homeManagerModules = {
@@ -58,7 +62,7 @@
       hyprlock = builtins.throw "hyprlock: the flake HM module has been removed. Use the module from Home Manager upstream.";
     };
 
-    checks = eachSystem (system: self.packages.${system});
+    checks = eachSystem (system: self.packages.${system} // (import ./nix/checks.nix inputs pkgsFor.${system}));
 
     formatter = eachSystem (system: pkgsFor.${system}.alejandra);
   };

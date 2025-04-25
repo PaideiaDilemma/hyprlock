@@ -1,6 +1,11 @@
-name: Build
+name: Nix (Build+Test)
 
-on: [push, pull_request, workflow_dispatch]
+on:
+  workflow_call:
+    secrets:
+      CACHIX_AUTH_TOKEN:
+        required: false
+
 jobs:
   nix:
     runs-on: ubuntu-latest
@@ -14,7 +19,14 @@ jobs:
     #   with:
     #     name: hyprland
     #     authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+    - uses: cachix/cachix-action@v15
+      with:
+        name: hyprland
+        authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
 
     - name: Build
+      run: nix build .#hyprlock --print-build-logs --keep-going
+
+    - name: Test (Run on Hyprland)
       run: nix flake check --print-build-logs --keep-going
 
