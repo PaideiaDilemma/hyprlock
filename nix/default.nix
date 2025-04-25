@@ -12,6 +12,7 @@
   hyprlang,
   hyprutils,
   hyprwayland-scanner,
+  hyprland-protocols,
   pam,
   pango,
   sdbus-cpp,
@@ -50,6 +51,7 @@ stdenv.mkDerivation {
     systemdLibs
     wayland
     wayland-protocols
+    hyprland-protocols
   ];
 
   cmakeFlags = lib.mapAttrsToList lib.cmakeFeature {

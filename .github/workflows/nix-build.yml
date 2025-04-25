@@ -1,0 +1,32 @@
+name: Nix (Build+Test)
+
+on:
+  workflow_call:
+    secrets:
+      CACHIX_AUTH_TOKEN:
+        required: false
+
+jobs:
+  nix:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - uses: DeterminateSystems/nix-installer-action@main
+
+    # not needed (yet)
+    # - uses: cachix/cachix-action@v12
+    #   with:
+    #     name: hyprland
+    #     authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+    - uses: cachix/cachix-action@v15
+      with:
+        name: hyprland
+        authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
+
+    - name: Build
+      run: nix flake check --print-build-logs --keep-going
+
+    - name: Test
+      run: nix run 'github:hyprwm/Hyprland' --extra-substituters "https://hyprland.cachix.org" -- --config "${{ github.workspace }}/tests/Hyprland.conf"
+

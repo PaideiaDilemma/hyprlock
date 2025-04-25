@@ -150,3 +150,28 @@ install(
   FILES ${CMAKE_SOURCE_DIR}/assets/example.conf
   DESTINATION ${CMAKE_INSTALL_FULL_DATAROOTDIR}/hypr
   RENAME hyprlock.conf)
+
+# Tests
+add_custom_target(tests)
+
+pkg_check_modules(hyprland_protocols_dep REQUIRED IMPORTED_TARGET hyprland-protocols>=0.6.0)
+pkg_get_variable(HYPRLAND_PROTOCOLS hyprland-protocols pkgdatadir)
+message(STATUS "Found hyprland-protocols at ${HYPRLAND_PROTOCOLS}")
+
+add_executable(hyprlock_tests "tests/hyprlock.cpp" "tests/harness.cpp" "protocols/wayland.cpp")
+add_custom_command(
+  OUTPUT ${CMAKE_SOURCE_DIR}/protocols/hyprland-lock-notify-v1.cpp
+          ${CMAKE_SOURCE_DIR}/protocols/hyprland-lock-notify-v1.hpp
+  COMMAND hyprwayland-scanner --client ${HYPRLAND_PROTOCOLS}/protocols/hyprland-lock-notify-v1.xml
+          ${CMAKE_SOURCE_DIR}/protocols/
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+target_sources(hyprlock_tests PRIVATE ${CMAKE_SOURCE_DIR}/protocols/hyprland-lock-notify-v1.cpp ${CMAKE_SOURCE_DIR}/protocols/hyprland-lock-notify-v1.hpp)
+
+target_link_libraries(hyprlock_tests PRIVATE PkgConfig::deps)
+add_test(
+  NAME "hyprlock_tests"
+  WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/tests
+  COMMAND hyprlock_tests "suit")
+
+add_dependencies(tests hyprlock_tests)
+
