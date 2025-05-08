@@ -4,6 +4,7 @@
 #include "Shadowable.hpp"
 #include "../../helpers/Math.hpp"
 #include "../../core/Timer.hpp"
+#include "../../config/ConfigDataValues.hpp"
 #include "../AsyncResourceGatherer.hpp"
 #include <string>
 #include <unordered_map>
@@ -41,7 +42,11 @@ class CLabel : public IWidget {
 
     Vector2D                                viewport;
     Vector2D                                pos;
+    Vector2D                                size;
     Vector2D                                configPos;
+    CLayoutValueData                        resizeXY;
+    eSizeLockedRatio                        lockedAspectRatio     = SIZE_LOCKED_RATIO_NONE;
+    bool                                    resizeRelativeToMonitor = false;
     double                                  angle;
     std::string                             resourceID;
     std::string                             pendingResourceID; // if dynamic label

@@ -74,18 +74,22 @@ void CLabel::configure(const std::unordered_map<std::string, std::any>& props, c
     shadow.configure(m_self.lock(), props, viewport);
 
     try {
-        configPos      = CLayoutValueData::fromAnyPv(props.at("position"))->getAbsolute(viewport);
-        labelPreFormat = std::any_cast<Hyprlang::STRING>(props.at("text"));
-        halign         = std::any_cast<Hyprlang::STRING>(props.at("halign"));
-        valign         = std::any_cast<Hyprlang::STRING>(props.at("valign"));
-        angle          = std::any_cast<Hyprlang::FLOAT>(props.at("rotate"));
-        angle          = angle * M_PI / 180.0;
-        onclickCommand = std::any_cast<Hyprlang::STRING>(props.at("onclick"));
+        configPos             = CLayoutValueData::fromAnyPv(props.at("position"))->getAbsolute(viewport);
+        labelPreFormat        = std::any_cast<Hyprlang::STRING>(props.at("text"));
+        halign                = std::any_cast<Hyprlang::STRING>(props.at("halign"));
+        valign                = std::any_cast<Hyprlang::STRING>(props.at("valign"));
+        angle                 = std::any_cast<Hyprlang::FLOAT>(props.at("rotate"));
+        onclickCommand        = std::any_cast<Hyprlang::STRING>(props.at("onclick"));
+        resizeXY            = *CLayoutValueData::fromAnyPv(props.at("resize:xy"));
+        lockedAspectRatio     = (eSizeLockedRatio)std::any_cast<Hyprlang::INT>(props.at("resize:locked_aspect_ratio"));
+        resizeRelativeToMonitor = std::any_cast<Hyprlang::INT>(props.at("resize:relative_to_monitor"));
 
         std::string textAlign  = std::any_cast<Hyprlang::STRING>(props.at("text_align"));
         std::string fontFamily = std::any_cast<Hyprlang::STRING>(props.at("font_family"));
         CHyprColor  labelColor = std::any_cast<Hyprlang::INT>(props.at("color"));
         int         fontSize   = std::any_cast<Hyprlang::INT>(props.at("font_size"));
+
+        angle                 = angle * M_PI / 180.0;
 
         label = formatString(labelPreFormat);
 
@@ -137,6 +141,13 @@ bool CLabel::draw(const SRenderData& data) {
 
         if (!asset)
             return true;
+
+        const auto& SIZERELATIVE = resizeRelativeToMonitor ? viewport : asset->texture.m_vSize;
+        size                     = resizeXY.getAbsolute(SIZERELATIVE);
+        if (lockedAspectRatio == SIZE_LOCKED_RATIO_X)
+            size.y = size.x * (asset->texture.m_vSize.y / asset->texture.m_vSize.x);
+        else if (lockedAspectRatio == SIZE_LOCKED_RATIO_Y)
+            size.x = size.y * (asset->texture.m_vSize.x / asset->texture.m_vSize.y);
     }
 
     if (updateShadow) {
@@ -147,10 +158,13 @@ bool CLabel::draw(const SRenderData& data) {
     shadow.draw(data);
 
     // calc pos
-    pos = posFromHVAlign(viewport, asset->texture.m_vSize, configPos, halign, valign, angle);
+    pos = posFromHVAlign(viewport, size, configPos, halign, valign, angle);
+    Debug::log(INFO, "Label size: {}x{}", size.x, size.y);
+    Debug::log(INFO, "resizeXY: {}x{}", resizeXY.m_vValues.x, resizeXY.m_vValues.y);
+    Debug::log(INFO, "resizeXY relative: {}x{}", resizeXY.m_sIsRelative.x, resizeXY.m_sIsRelative.y);
 
-    CBox box = {pos.x, pos.y, asset->texture.m_vSize.x, asset->texture.m_vSize.y};
-    box.rot  = angle;
+    CBox box{pos, size};
+    box.rot = angle;
     g_pRenderer->renderTexture(box, asset->texture, data.opacity);
 
     return false;
@@ -180,8 +194,8 @@ CBox CLabel::getBoundingBoxWl() const {
         return CBox{};
 
     return {
-        Vector2D{pos.x, viewport.y - pos.y - asset->texture.m_vSize.y},
-        asset->texture.m_vSize,
+        Vector2D{pos.x, viewport.y - pos.y - size.y},
+        size,
     };
 }
 

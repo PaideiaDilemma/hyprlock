@@ -39,7 +39,11 @@ class CImage : public IWidget {
 
     CFramebuffer                            imageFB;
 
-    int                                     size;
+    uint32_t legacySize = 0;
+    CLayoutValueData                        resizeXY;
+    eSizeLockedRatio                        lockedAspectRatio     = SIZE_LOCKED_RATIO_NONE;
+    bool                                    resizeRelativeToMonitor = false;
+
     int                                     rounding;
     double                                  border;
     double                                  angle;

@@ -10,6 +10,12 @@
 
 using namespace Hyprutils::String;
 
+enum eSizeLockedRatio : uint8_t {
+    SIZE_LOCKED_RATIO_NONE = 0,
+    SIZE_LOCKED_RATIO_X    = 1,
+    SIZE_LOCKED_RATIO_Y    = 2,
+};
+
 enum eConfigValueDataTypes {
     CVD_TYPE_INVALID  = -1,
     CVD_TYPE_LAYOUT   = 0,

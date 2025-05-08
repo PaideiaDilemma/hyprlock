@@ -85,14 +85,17 @@ void CImage::configure(const std::unordered_map<std::string, std::any>& props, c
     shadow.configure(m_self.lock(), props, viewport);
 
     try {
-        size      = std::any_cast<Hyprlang::INT>(props.at("size"));
-        rounding  = std::any_cast<Hyprlang::INT>(props.at("rounding"));
-        border    = std::any_cast<Hyprlang::INT>(props.at("border_size"));
-        color     = *CGradientValueData::fromAnyPv(props.at("border_color"));
-        configPos = CLayoutValueData::fromAnyPv(props.at("position"))->getAbsolute(viewport);
-        halign    = std::any_cast<Hyprlang::STRING>(props.at("halign"));
-        valign    = std::any_cast<Hyprlang::STRING>(props.at("valign"));
-        angle     = std::any_cast<Hyprlang::FLOAT>(props.at("rotate"));
+        legacySize            = std::any_cast<Hyprlang::INT>(props.at("size"));
+        rounding              = std::any_cast<Hyprlang::INT>(props.at("rounding"));
+        border                = std::any_cast<Hyprlang::INT>(props.at("border_size"));
+        color                 = *CGradientValueData::fromAnyPv(props.at("border_color"));
+        configPos             = CLayoutValueData::fromAnyPv(props.at("position"))->getAbsolute(viewport);
+        halign                = std::any_cast<Hyprlang::STRING>(props.at("halign"));
+        valign                = std::any_cast<Hyprlang::STRING>(props.at("valign"));
+        angle                 = std::any_cast<Hyprlang::FLOAT>(props.at("rotate"));
+        resizeXY            = *CLayoutValueData::fromAnyPv(props.at("resize:xy"));
+        lockedAspectRatio     = (eSizeLockedRatio)std::any_cast<Hyprlang::INT>(props.at("resize:locked_aspect_ratio"));
+        resizeRelativeToMonitor = std::any_cast<Hyprlang::INT>(props.at("resize:relative_to_monitor"));
 
         path           = std::any_cast<Hyprlang::STRING>(props.at("path"));
         reloadTime     = std::any_cast<Hyprlang::INT>(props.at("reload_time"));
@@ -103,6 +106,9 @@ void CImage::configure(const std::unordered_map<std::string, std::any>& props, c
     } catch (const std::out_of_range& e) {
         RASSERT(false, "Missing propperty for CImage: {}", e.what()); //
     }
+
+    if (legacySize)
+        Debug::log(WARN, "Image: the 'image:size' property is deprecated and will be removed in the future. Use 'image:resize' instead.");
 
     resourceID = "image:" + path;
     angle      = angle * M_PI / 180.0;
@@ -156,15 +162,26 @@ bool CImage::draw(const SRenderData& data) {
 
         const Vector2D IMAGEPOS  = {border, border};
         const Vector2D BORDERPOS = {0.0, 0.0};
-        const Vector2D TEXSIZE   = asset->texture.m_vSize;
-        const float    SCALEX    = size / TEXSIZE.x;
-        const float    SCALEY    = size / TEXSIZE.y;
+        Vector2D size {};
+
+        // TODO: Remove this in the future
+        if (legacySize) {
+          const auto SCALE = Vector2D{(double)legacySize,(double)legacySize} / asset->texture.m_vSize;
+          size = asset->texture.m_vSize * std::max(SCALE.x, SCALE.y);
+        }
+        else {
+            const auto&    SIZERELATIVE = resizeRelativeToMonitor ? viewport : asset->texture.m_vSize;
+            size         = resizeXY.getAbsolute(SIZERELATIVE);
+            if (lockedAspectRatio == SIZE_LOCKED_RATIO_X)
+                size.y = size.x * (asset->texture.m_vSize.y / asset->texture.m_vSize.x);
+            else if (lockedAspectRatio == SIZE_LOCKED_RATIO_Y)
+                size.x = size.y * (asset->texture.m_vSize.x / asset->texture.m_vSize.y);
+        }
 
         // image with borders offset, with extra pixel for anti-aliasing when rotated
-        CBox texbox = {angle == 0 ? IMAGEPOS : IMAGEPOS + Vector2D{1.0, 1.0}, TEXSIZE};
+        CBox texbox = {angle == 0 ? IMAGEPOS : IMAGEPOS + Vector2D{1.0, 1.0}, size};
 
-        texbox.w *= std::max(SCALEX, SCALEY);
-        texbox.h *= std::max(SCALEX, SCALEY);
+        texbox.round();
 
         // plus borders if any
         CBox borderBox = {angle == 0 ? BORDERPOS : BORDERPOS + Vector2D{1.0, 1.0}, texbox.size() + IMAGEPOS * 2.0};
