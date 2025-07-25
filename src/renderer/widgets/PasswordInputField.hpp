@@ -24,7 +24,7 @@ class CPasswordInputField : public IWidget {
     virtual void configure(const std::unordered_map<std::string, std::any>& prop, const SP<COutput>& pOutput);
     virtual bool draw(const SRenderData& data);
     virtual void onHover(const Vector2D& pos);
-    virtual bool onPointerMove(const Vector2D& pos);
+    virtual bool staticHover() const;
     virtual void onClick(uint32_t button, bool down, const Vector2D& pos);
     virtual CBox getBoundingBoxWl() const;
 
@@ -46,7 +46,7 @@ class CPasswordInputField : public IWidget {
     void                     updateInputState();
     void                     updateColors();
 
-    CBox                     getEyeBox();
+    CBox                     getEyeBoxWl();
 
     bool                     firstRender  = true;
     bool                     redrawShadow = false;
@@ -67,38 +67,39 @@ class CPasswordInputField : public IWidget {
     int                      outThick, rounding;
 
     struct {
+        PHLANIMVAR<float> currentAmount;
+        bool              center     = false;
+        float             size       = 0;
+        float             spacing    = 0;
+        int               rounding   = 0;
+        std::string       textFormat = "";
+        std::string       textResourceID;
+        SPreloadedAsset*  textAsset = nullptr;
+    } dots;
+
+    struct {
+        double           size      = 0.25;
+        std::string      placement = "right";
+
+        CBox             box;
+
+        std::string      openRescourceID   = "";
+        SPreloadedAsset* openAsset         = nullptr;
+        std::string      closedRescourceID = "";
+        SPreloadedAsset* closedAsset       = nullptr;
+    } eye;
+
+    struct {
         bool  allowToggle = false;
+        bool  show        = false;
         bool  center      = false;
         float size        = 0.25;
-
         struct {
-            std::string      content           = "";
             std::string      resourceID        = "";
             std::string      pendingResourceID = "";
+            size_t           passwordLength    = 0;
             SPreloadedAsset* asset             = nullptr;
-            SPreloadedAsset* previousAsset     = nullptr;
         } text;
-
-        struct {
-            PHLANIMVAR<float> currentAmount;
-            float             spacing    = 0;
-            int               rounding   = 0;
-            std::string       format     = "";
-            std::string       resourceID = "";
-            SPreloadedAsset*  asset      = nullptr;
-        } dots;
-
-        struct {
-            int              margin    = 16;
-            double           size      = 0.25;
-            std::string      placement = "right";
-            bool             hide      = false;
-
-            std::string      openRescourceID   = "";
-            SPreloadedAsset* openAsset         = nullptr;
-            std::string      closedRescourceID = "";
-            SPreloadedAsset* closedAsset       = nullptr;
-        } eye;
     } password;
 
     struct {
