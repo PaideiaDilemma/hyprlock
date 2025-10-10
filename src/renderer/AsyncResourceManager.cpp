@@ -4,6 +4,7 @@
 #include "../helpers/Log.hpp"
 #include "../helpers/MiscFunctions.hpp"
 #include "../core/hyprlock.hpp"
+#include "../core/Egl.hpp"
 #include "../config/ConfigManager.hpp"
 
 #include <algorithm>
@@ -298,10 +299,12 @@ void CAsyncResourceManager::onResourceFinished(ResourceID id) {
     if (!m_assets.contains(id) || m_assets[id].refs == 0) // Not referenced? Drop it
         return;
 
-    if (!RESOURCE || !RESOURCE->m_asset.cairoSurface)
+    if (!RESOURCE || !RESOURCE->m_asset.cairoSurface || !g_pEGL)
         return;
 
     Debug::log(TRACE, "Resource to texture id:{}", id);
+
+    g_pEGL->makeCurrent(nullptr);
 
     const auto           texture = makeAtomicShared<CTexture>();
 
